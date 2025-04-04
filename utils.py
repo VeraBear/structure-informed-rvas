@@ -15,7 +15,8 @@ def get_pairwise_distances(pdb_file):
     pairwise_distances = np.sqrt(np.sum((ca_atoms[:, np.newaxis] - ca_atoms) ** 2, axis=-1))
     return pairwise_distances
 
-def get_adjacency_matrix(pairwise_distances, radius):
+def get_adjacency_matrix(pdb_file, radius):
+    pairwise_distances = get_pairwise_distances(pdb_file)
     return (pairwise_distances < radius) * 1
 
 def valid_for_fisher(contingency_table):

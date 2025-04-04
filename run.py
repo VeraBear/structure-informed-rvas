@@ -36,7 +36,7 @@ if __name__ == '__main__':
         help='neighborhood radius for clinvar or annotation tests',
     )
     parser.add_argument(
-        'filter-file',
+        '--filter-file',
         type=str,
         default=None,
         help='file to filter variants after expanding neighborhood'
