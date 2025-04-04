@@ -24,8 +24,9 @@ if __name__ == '__main__':
         help='perform clinvar test',
     )
     parser.add_argument(
-        '--annotation',
+        '--annotation_file',
         type=str,
+        default=None,
         help='perform a burden test using this annotation',
     )
     parser.add_argument(
@@ -33,6 +34,12 @@ if __name__ == '__main__':
         type=float,
         default=15.0,
         help='neighborhood radius for clinvar or annotation tests',
+    )
+    parser.add_argument(
+        'filter-file',
+        type=str,
+        default=None,
+        help='file to filter variants after expanding neighborhood'
     )
     parser.add_argument(
         '--genome-build',
@@ -53,6 +60,7 @@ if __name__ == '__main__':
     )
     args = parser.parse_args
 
+    # map rvas results onto protein coordinates, linked to pdb files
     df_rvas = map_to_protein(args.rvas_data, args.which_proteins, args.genome_build)
 
     if args.scan_test:
@@ -60,10 +68,23 @@ if __name__ == '__main__':
     
     elif args.clinvar_test:
         annotation_file = f'{args.reference_dir}/ClinVar_PLP_uniprot_canonical.tsv.gz'
-        annotation_test(df_rvas, annotation_file, args.reference_dir, args.neighborhood_radius)
+        filter_file = f'{args.reference_dir}/AlphaMissense_gt_0.9.tsv.gz'
+        annotation_test(
+            df_rvas,
+            annotation_file,
+            args.reference_dir,
+            args.neighborhood_radius,
+            filter_file,
+        )
 
-    elif args.annotation:
-        annotation_test(df_rvas, args.annotation, args.reference_dir, args.neighborhood_radius)
+    elif args.annotation_file is not None:
+        annotation_test(
+            df_rvas,
+            args.annotation_file,
+            args.reference_dir,
+            args.neighborhood_radius,
+            args.filter_file,
+        )
     
     else:
         print('no analysis specified')

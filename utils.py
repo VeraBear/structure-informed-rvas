@@ -2,9 +2,13 @@ def get_pairwise_distance_matrix(pdb_file):
     '''
     return all pairwise distances
     '''
-
-def make_pymol_session(df_results, df_rvas, uniprot_id, annotation=None):
+    
+def fdr_uncorrelated():
     '''
-    create a .pse file with selections for case/control counts, avgs within
-    a neighborhood, and the annotations if relevant.
+    compute fdr from a list of p-values. used to correct across genes.
+    '''
+
+def empirical_fdr():
+    '''
+    compute fdr from null permutations
     '''
