@@ -19,9 +19,12 @@ def annotation_test(
 
         ## Expand residues
         annot_residues_inprotein = annotation_file.loc[annotation_file.uniprot_id == uniprotID, 'aa_pos'] #residues with reference to protein
-        annot_residues_file = DFANNOT.loc[(DFANNOT.uniprot_id == uniprotID) & DFANNOT.aa_pos.isin(annot_residues_inprotein), 
-                                        ['aa_pos','pdb_filename','aa_pos_file']].set_index('aa_pos_file', drop=False) # df mapping between protein-file residue pos 
-        annot_residues_infile = annot_residues_file.aa_pos_file #residues with reference to pdb file 
+        # TMP:
+        annot_residues_infile = annot_residues_inprotein
+        # Need to work on this:
+        #annot_residues_file = DFANNOT.loc[(DFANNOT.uniprot_id == uniprotID) & DFANNOT.aa_pos.isin(annot_residues_inprotein), 
+        #                                ['aa_pos','pdb_filename','aa_pos_file']].set_index('aa_pos_file', drop=False) # df mapping between protein-file residue pos 
+        #annot_residues_infile = annot_residues_file.aa_pos_file #residues with reference to pdb file 
                              
         expanded_annot_residues = list()
         for ipdb in annot_residues_file.pdb_filename.unique():
@@ -43,8 +46,10 @@ def annotation_test(
             residue_cas = ca_atoms[annot_residues_infile-1,:]
             distance_from_center = np.sqrt(np.sum((ca_atoms[:, np.newaxis] - residue_cas) ** 2, axis=-1))
             expanded_residues_file = list(set(np.where(distance_from_center<=neighborhood_radius)[0]+1))
-            #expanded_residues_protein = annot_residues_file.loc(expanded_residues_file,'aa_pos')
+            # TMP:
             expanded_residues_protein = expanded_residues_file
+            # Need to work on this:
+            #expanded_residues_protein = annot_residues_file.loc(expanded_residues_file,'aa_pos')
             expanded_annot_residues.append(expanded_residues_protein)
 
         expanded_annot_residues = flatten(expanded_annot_residues)
