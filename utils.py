@@ -1,9 +1,15 @@
 import numpy as np
 from Bio.PDB import PDBParser
+import gzip
 
 def get_pairwise_distances(pdb_file):
     parser = PDBParser(QUIET=True)
-    structure = parser.get_structure("protein", pdb_file)
+    if pdb_file.endswith('.gz'):
+        with gzip.open(pdb_file, 'rt') as handle:
+            structure = parser.get_structure("protein", handle)
+    else:
+        with open(pdb_file, 'r') as handle:
+            structure = parser.get_structure("protein", handle)
 
     ca_atoms = []
     for model in structure:
@@ -15,7 +21,8 @@ def get_pairwise_distances(pdb_file):
     pairwise_distances = np.sqrt(np.sum((ca_atoms[:, np.newaxis] - ca_atoms) ** 2, axis=-1))
     return pairwise_distances
 
-def get_adjacency_matrix(pairwise_distances, radius):
+def get_adjacency_matrix(pdb_file, radius):
+    pairwise_distances = get_pairwise_distances(pdb_file)
     return (pairwise_distances < radius) * 1
 
 def valid_for_fisher(contingency_table):

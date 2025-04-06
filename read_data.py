@@ -1,4 +1,4 @@
-def map_to_protein(rvas_data, which_proteins, genome_build):
+def map_to_protein(rvas_data, which_proteins, genome_build, reference_directory):
     '''
     rvas_data is a path to a .tsv.gz file with columns chr, pos, ref, alt, ac_case, ac_control.
     which_proteins is either the name of a protein or file with a list of proteins. we could 

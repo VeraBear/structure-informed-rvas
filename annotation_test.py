@@ -3,7 +3,7 @@ def annotation_test(
         annotation_file,
         reference_directory,
         neighborhood_radius,
-        filter_file,
+        filter_file, #e.g. list of high alpha missense
     ):
 
     from Bio.PDB import PDBParser
