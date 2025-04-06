@@ -80,6 +80,7 @@ def compute_fdr(df_pvals):
     false_discoveries_avg = [np.sum(null_ps <= p)/n_sim for p in df_pvals.p_value]
     df_pvals['false_discoveries_avg'] = false_discoveries_avg
     df_pvals['fdr'] = [x / (i+1) for i, x in enumerate(false_discoveries_avg)]
+    df_pvals['fdr'] = df_pvals['fdr'][::-1].cummin()[::-1]
     df_results = df_pvals[['aa_pos', 'p_value', 'fdr']]
     print(df_results[0:20])
     return df_results
@@ -102,5 +103,5 @@ def scan_test(df_rvas, reference_dir, radius, results_dir, n_sims=1000):
         pdb_filename = np.unique(df.pdb_filename)[0]
         df = df[df.pdb_filename == pdb_filename].reset_index(drop=True)
         full_pdb_filename = f'{reference_dir}/pdb_files/{pdb_filename}'
-        results_df_path = f'{results_dir}/{uniprot_id}.results.tsv'
+        results_df_path = f'{results_dir}/{uniprot_id}.scan_test.results.tsv'
         scan_test_one_protein(df, full_pdb_filename, results_df_path, radius, n_sims)

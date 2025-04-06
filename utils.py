@@ -4,8 +4,12 @@ import gzip
 
 def get_pairwise_distances(pdb_file):
     parser = PDBParser(QUIET=True)
-    with gzip.open(pdb_file, 'rt') as handle:
-        structure = parser.get_structure("protein", handle)
+    if pdb_file.endswith('.gz'):
+        with gzip.open(pdb_file, 'rt') as handle:
+            structure = parser.get_structure("protein", handle)
+    else:
+        with open(pdb_file, 'r') as handle:
+            structure = parser.get_structure("protein", handle)
 
     ca_atoms = []
     for model in structure:
