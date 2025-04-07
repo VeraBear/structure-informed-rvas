@@ -99,7 +99,8 @@ def scan_test(df_rvas, reference_dir, radius, results_dir, n_sims=1000):
     for uniprot_id in uniprot_id_list:
         df = df_rvas[df_rvas.uniprot_id == uniprot_id]
         if len(np.unique(df.pdb_filename)) > 1:
-            print('only using one pdb file for now')
+            print('skipping when there is more than one pdb file')
+            continue
         pdb_filename = np.unique(df.pdb_filename)[0]
         df = df[df.pdb_filename == pdb_filename].reset_index(drop=True)
         full_pdb_filename = f'{reference_dir}/pdb_files/{pdb_filename}'

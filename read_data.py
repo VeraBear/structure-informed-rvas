@@ -40,7 +40,16 @@ def load_ref_for_chrom(path, chrom, pos_filter):
     return df
 
 
-def map_to_protein(rvas_path, which_proteins = 'all', genome_build = None, delimiter=None):
+def map_to_protein(
+    rvas_path,
+    variant_id_col,
+    ac_case_col,
+    ac_control_col,
+    reference_directory,
+    which_proteins = 'all',
+    genome_build = None,
+    delimiter=None
+):
     '''
     rvas_path is a path to a .tsv.gz file with columns chr, pos, ref, alt, ac_case, ac_control.
     which_proteins is either the name of a protein or file with a list of proteins. we could 
@@ -57,6 +66,13 @@ def map_to_protein(rvas_path, which_proteins = 'all', genome_build = None, delim
     # read data and ensure it has chr, pos and Variant ID columns
     pandas_engine = 'python' if delimiter is None else None
     rvas_data = pd.read_csv(rvas_path, sep=delimiter, engine=pandas_engine)
+    rvas_data = rvas_data.rename(columns = {
+        variant_id_col: 'Variant ID',
+        ac_case_col: 'ac_case',
+        ac_control_col: 'ac_control',
+    })
+    rvas_data['Variant ID'] = [x.replace(':', '-') for x in rvas_data['Variant ID']]
+
     if 'Variant ID' in rvas_data:
         if not all(rvas_data['Variant ID'].str.split('-').str.len() == 4):
             raise Exception('Variant ID should be formatted as chr-pos-ref-alt.')
@@ -83,7 +99,7 @@ def map_to_protein(rvas_path, which_proteins = 'all', genome_build = None, delim
 
     # join to reference variants and identify relevant proteins
     result = []
-    ref_path = 'all_missense_variants_gr38.h5'
+    ref_path = f'{reference_directory}/all_missense_variants_gr38.h5'
     for chrom, rvas_data_by_chr in rvas_data.groupby('chr'):
         ref = load_ref_for_chrom(ref_path, chrom, rvas_data_by_chr['pos'])
         if ref is None:
