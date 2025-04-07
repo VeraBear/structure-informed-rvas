@@ -65,7 +65,7 @@ def map_to_protein(
 
     # read data and ensure it has chr, pos and Variant ID columns
     pandas_engine = 'python' if delimiter is None else None
-    compression = 'gzip' if rvas_path.endswith('gz') else None
+    compression = 'gzip' if rvas_path.endswith('.bgz') else 'infer' # infer doesn't recognize .bgz extension
     rvas_data = pd.read_csv(rvas_path, sep=delimiter, engine=pandas_engine, compression=compression)
     rvas_data = rvas_data.rename(columns = {
         variant_id_col: 'Variant ID',
