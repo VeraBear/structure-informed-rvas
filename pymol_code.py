@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import ast
 import gzip
-import shutil
 from Bio.PDB import PDBParser
 from Bio.PDB import StructureBuilder, PDBIO, Model, Chain
 
@@ -31,11 +30,8 @@ def get_one_pdb(info_tsv, uniprot_id, reference_directory):
     pdbs = [item for item in os.listdir(reference_directory) if item.endswith('.gz') and uniprot_id in item]
     full_pdb = []
     pdbs.sort(key=lambda item: item.split('-')[2][-1])
-    # print(pdbs)
     for item in pdbs:
-        # print(item[:-3])
         p = os.path.join(reference_directory, item)
-        # print(p_pos_cover)
         if 'F1' in item:
             with gzip.open(p, "rt") as handle:
                 structure = PDBParser(QUIET=True).get_structure("protein", handle)
@@ -51,9 +47,9 @@ def get_one_pdb(info_tsv, uniprot_id, reference_directory):
                 for chain in model:
                     for residue in chain:
                         new_residue.append(residue)
-            # print(full_pdb[-1].id)
+    
             new_residue = new_residue[1200:]
-            # print(len(new_residue))
+
             for i in range(len(new_residue)):
                 new_residue[i].id = (' ', 1 + i + full_pdb[-1].id[1], ' ')
             full_pdb.extend(new_residue)
@@ -63,6 +59,7 @@ def get_one_pdb(info_tsv, uniprot_id, reference_directory):
 def pymol_rvas(info_tsv, df_rvas, reference_directory):
     # make a pymol session with case and control mutations
     # output a gif and a .pse file
+
     df_rvas = pd.read_csv(df_rvas, sep='\t')
     pdbs = set(df_rvas['pdb_filename'].tolist())
     uniprot_ids = set(df_rvas['uniprot_id'].tolist())
@@ -107,10 +104,6 @@ def pymol_rvas(info_tsv, df_rvas, reference_directory):
             cmd.color("purple", f"residue_{aa_pos_file}")
             cmd.label(f"residue_{aa_pos_file} and name CA", f'"{aa_ref}->{aa_alt}"')
         
-        # cmd.bg_color("black")
-        # cmd.mset("1 x 20")  
-        # cmd.turn("y", 5)  
-        # cmd.mpng(f"{uniprot_id}_{item}_frame")
         cmd.save(f"{uniprot_id}_{item.split('.')[0]}.pse")
 
         uniprot_ids = set(df_rvas['uniprot_id'].tolist())
@@ -159,29 +152,6 @@ def pymol_rvas(info_tsv, df_rvas, reference_directory):
 
 def pymol_annotation(annot_file, reference_directory):
     # visualize the annotation
-
-    # info_df = pd.read_csv(info_tsv, sep='\t')
-    # info_df['uniprot_id'] = info_df['filename'].apply(lambda x: x.split('-')[1])
-    # info_df['pos_covered'] = info_df['pos_covered'].apply(ast.literal_eval)
-    # info_df['start_pos'] = info_df['pos_covered'].apply(lambda x: x[0])
-    # info_df['end_pos'] = info_df['pos_covered'].apply(lambda x: x[1])
-    # annot_df = pd.read_csv(annot_file, sep='\t')
-    # annot_uniprot = set(annot_df['uniprot_id'].tolist())
-    # for item in annot_uniprot:
-    #     tmp_annot = annot_df[annot_df['uniprot_id'] == item]
-    #     tmp_info = info_df[info_df['uniprot_id'] == item]
-    #     for _, row in tmp_annot.iterrows(): 
-    #         mask = (tmp_info['start_pos'].astype(int) < int(row['aa_pos'])) & (tmp_info['end_pos'].astype(int) > int(row['aa_pos']))
-    #         annot_info = tmp_info[mask]
-    #         uniprot_id = row['uniprot_id']
-    #         pse_filenames = [f'{uniprot_id}_{item.split('.')[0]}.pse' for item in annot_info['filename'].tolist()]
-    #         for filename in pse_filenames:
-    #             p = os.path.join(reference_directory, filename)
-    #             cmd.load(p)
-    #             cmd.select(f"annotation_residue_{row['aa_pos']}", f"resi {row['aa_pos']}")
-    #             cmd.label(f"annotation_residue_{row['aa_pos']} and name CA", f'"annotation"')
-    #             cmd.save(p)
-
     annot_df = pd.read_csv(annot_file, sep='\t')
     uniprot_ids = set(annot_df['uniprot_id'].tolist())
     for uniprot_id in uniprot_ids:
@@ -204,7 +174,6 @@ def pymol_scan_test(df_results, reference_directory):
     df_results = pd.read_csv(df_results_p, sep='\t')
     df_results['ratio_normalized'] = df_results['ratio'] / df_results['ratio'].max()
     df_results['ratio_normalized'].to_csv('test.csv', sep='\t', index=False)
-    # color_dict = dict(zip(df_results['aa_pos'], df_results['ratio_normalized']))
     
     cmd.load(pse_p)
     objects = cmd.get_names('objects')[-1]
@@ -223,15 +192,6 @@ def pymol_scan_test(df_results, reference_directory):
         cmd.rebuild()
     
     cmd.spectrum("b", "blue_white_red", objects, byres=1)
-    # model = cmd.get_model(objects)
-    # for atom in model.atom:
-    #     print(f"Residue {atom.resi}, Atom {atom.name}, B-factor: {atom.b:.2f}")
-
-
-    # for pos, value in color_dict.items():
-    #     cmd.select(f'residue_{pos}', f"resi {pos} and chain A")
-    #     cmd.color('orange', f'residue_{pos}')
-    #     cmd.set("transparency", 1.0 - value, f'residue_{pos}')
 
     result_pse_p = os.path.join(reference_directory, f'{uniprot_id}_result.pse')
     cmd.save(result_pse_p)
@@ -256,12 +216,6 @@ def pymol_neighborhood(df_results, reference_directory):
             cmd.label(f"residue_{resi} and name CA", f'"case: {nbhd_case}; control: {nbhd_ctrl}"')
             cmd.zoom(selection)
     cmd.save(f"{uniprot_id}_result.pse")
-
-    # df_rvas = pd.read_csv(df_rvas, sep='\t')
-    # tmp_df_rvas = df_rvas[df_rvas['uniprot_id'] == uniprot_id]
-    # df_merged = pd.merge(df_results, tmp_df_rvas, on='aa_pos', how='inner')
-    # print(df_merged)
-
 
 pymol_rvas('info.tsv','sample_df_rvas.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
 pymol_annotation('ClinVar_PLP_uniprot_canonical.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
