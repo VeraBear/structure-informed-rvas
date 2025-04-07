@@ -65,15 +65,16 @@ def map_to_protein(
 
     # read data and ensure it has chr, pos and Variant ID columns
     pandas_engine = 'python' if delimiter is None else None
-    rvas_data = pd.read_csv(rvas_path, sep=delimiter, engine=pandas_engine)
+    compression = 'gzip' if rvas_path.endswith('gz') else None
+    rvas_data = pd.read_csv(rvas_path, sep=delimiter, engine=pandas_engine, compression=compression)
     rvas_data = rvas_data.rename(columns = {
         variant_id_col: 'Variant ID',
         ac_case_col: 'ac_case',
         ac_control_col: 'ac_control',
     })
-    rvas_data['Variant ID'] = [x.replace(':', '-') for x in rvas_data['Variant ID']]
 
     if 'Variant ID' in rvas_data:
+        rvas_data['Variant ID'] = [x.replace(':', '-') for x in rvas_data['Variant ID']]
         if not all(rvas_data['Variant ID'].str.split('-').str.len() == 4):
             raise Exception('Variant ID should be formatted as chr-pos-ref-alt.')
         if 'chr' not in rvas_data:
