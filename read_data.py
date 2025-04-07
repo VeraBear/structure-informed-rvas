@@ -85,7 +85,6 @@ def map_to_protein(rvas_path, which_proteins = 'all', genome_build = None, delim
     result = []
     ref_path = 'all_missense_variants_gr38.h5'
     for chrom, rvas_data_by_chr in rvas_data.groupby('chr'):
-        rvas_data_by_chr['pos'] = rvas_data_by_chr['pos'].astype(int)
         ref = load_ref_for_chrom(ref_path, chrom, rvas_data_by_chr['pos'])
         if ref is None:
             continue
