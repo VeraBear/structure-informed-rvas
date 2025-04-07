@@ -217,7 +217,7 @@ def pymol_neighborhood(df_results, reference_directory):
             cmd.zoom(selection)
     cmd.save(f"{uniprot_id}_result.pse")
 
-pymol_rvas('info.tsv','sample_df_rvas.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
-pymol_annotation('ClinVar_PLP_uniprot_canonical.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
-pymol_scan_test('O15047_results.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
-pymol_neighborhood('O15047_results.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
+# pymol_rvas('info.tsv','sample_df_rvas.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
+# pymol_annotation('ClinVar_PLP_uniprot_canonical.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
+# pymol_scan_test('O15047_results.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
+# pymol_neighborhood('O15047_results.tsv', '/Users/liaoruqi/Desktop/structure-informed-rvas/')
