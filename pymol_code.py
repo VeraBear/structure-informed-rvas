@@ -20,6 +20,8 @@ def write_full_pdb(full_pdb, output_path):
         chain = model['A']
 
         for residue in full_pdb:
+            if residue.id[1] == 1201:
+                print(residue)
             chain.add(residue.copy())  
 
         io = PDBIO()
@@ -52,16 +54,21 @@ def get_one_pdb(info_tsv, uniprot_id, reference_directory):
                 
                 if 'F1' in item:
                     full_pdb.extend(residues)
+                    current_res_id = full_pdb[-1].id[1]
+
                 else:
                     new_residue = residues[1200:]
-                    for i, residue in enumerate(residues):
-                        residue.id = (' ', 1 + i + full_pdb[-1].id[1], ' ')
-                    full_pdb.extend(new_residue)
+                    for i, res in enumerate(new_residue):
+                        res_id = list(res.id)
+                        res_id[1] = current_res_id + 1
+                        res.id = tuple(res_id)
+                        current_res_id += 1
+                        full_pdb.append(res)
 
             except Exception as e:
                 print(f"[ERROR] Failed to parse {p}: {e}")
 
-        output_path = os.path.join(reference_directory, uniprot_id + '.pdb')
+        output_path = os.path.join(reference_directory, 'pdb_files', uniprot_id + '.pdb')
         write_full_pdb(full_pdb, output_path)
 
     except Exception as e:
