@@ -6,12 +6,9 @@ import ast
 import gzip
 from Bio.PDB import PDBParser
 from Bio.PDB import StructureBuilder, PDBIO, Model, Chain
-<<<<<<< HEAD
 from moviepy import VideoFileClip, clips_array
 
-=======
 from utils import read_p_values
->>>>>>> hdf5-results
 
 def write_full_pdb(full_pdb, output_path):
     try:
@@ -262,13 +259,8 @@ def pymol_annotation(annot_file, reference_directory, results_directory):
         annot_df = pd.read_csv(annot_df_p, sep='\t')
         uniprot_ids = set(annot_df['uniprot_id'].tolist())
         for uniprot_id in uniprot_ids:
-<<<<<<< HEAD
             p = os.path.join(results_directory,  f'{uniprot_id}.pse')
             if not os.path.exists(p):
-=======
-            p = os.path.join(reference_directory,  f'{uniprot_id}.pse')
-            if not os.path.isfile(p):
->>>>>>> hdf5-results
                 print(f"[WARNING] PSE file from pymol_rvas() not found: {p}")
                 continue
             cmd.load(p)
@@ -283,20 +275,11 @@ def pymol_annotation(annot_file, reference_directory, results_directory):
         print(f"[ERROR] in pymol_annotation(): {e}")
 
     
-<<<<<<< HEAD
-def pymol_scan_test(info_tsv, df_rvas, df_results, results_directory):
-    # color by case/control ratio of the neighborhood
-    try:
-        uniprot_id = df_results.split('_')[0]
-        df_results_p = os.path.join(results_directory, df_results)
-        if not os.path.exists(df_results_p):
-=======
 def pymol_scan_test(info_tsv, df_rvas, uniprot_id, reference_directory, results_directory):
     # color by case/control ratio of the neighborhood
     try:
         df_results_p = os.path.join(results_directory, 'p_values.h5')
         if not os.path.isfile(df_results_p):
->>>>>>> hdf5-results
             print(f"[WARNING] Scan test result file not found: {df_results_p}")
             return
         if info_tsv is not None:
@@ -304,15 +287,9 @@ def pymol_scan_test(info_tsv, df_rvas, uniprot_id, reference_directory, results_
         else:
             df_rvas_p = os.path.join(results_directory, df_rvas)
             df_rvas = pd.read_csv(df_rvas_p, sep='\t')
-<<<<<<< HEAD
-            # pdb_filename = df_rvas['pdb_filename'].values[0]
-            pse_p = os.path.join(results_directory, f"{uniprot_id}.pse")
-        if not os.path.exists(pse_p):
-=======
             pdb_filename = df_rvas['pdb_filename'].values[0]
             pse_p = os.path.join(results_directory, f"{uniprot_id}_{pdb_filename.split('.')[0]}.pse")
         if not os.path.isfile(pse_p):
->>>>>>> hdf5-results
             print(f"[WARNING] PSE file from pymol_rvas() not found: {pse_p}")
             return
         
@@ -369,15 +346,6 @@ def pymol_neighborhood(df_results, results_directory):
     # just in that neighborhood.
     try:
         uniprot_id = df_results.split('_')[0]
-<<<<<<< HEAD
-        df_results_p = os.path.join(results_directory, df_results)
-        if not os.path.exists(df_results_p):
-            print(f"[WARNING] Scan test result file not found: {df_results_p}")
-            return
-        df_results = pd.read_csv(df_results_p, sep='\t')
-        pse_p = os.path.join(results_directory, uniprot_id + '_result.pse')
-        if not os.path.exists(pse_p):
-=======
         df_results_p = os.path.join(reference_directory, df_results)
         if not os.path.isfile(df_results_p):
             print(f"[WARNING] Scan test result file not found: {df_results_p}")
@@ -385,7 +353,6 @@ def pymol_neighborhood(df_results, results_directory):
         df_results = pd.read_csv(df_results_p, sep='\t')
         pse_p = os.path.join(reference_directory, uniprot_id + '_result.pse')
         if not os.path.isfile(pse_p):
->>>>>>> hdf5-results
             print(f"[WARNING] PSE file from pymol_scan_test() not found: {pse_p}")
             return
         
@@ -448,12 +415,8 @@ def run_all(results_directory, reference_directory, info_tsv=None):
     for uniprot_id in uniprot_list:
         df_rvas = f'{uniprot_id}.df_rvas.tsv'
         pymol_rvas(info_tsv, df_rvas, reference_directory, results_directory)
-<<<<<<< HEAD
         pymol_scan_test(info_tsv, df_rvas, df_results, reference_directory, results_directory)
         make_movie(results_directory, uniprot_id)
-=======
-        pymol_scan_test(info_tsv, df_rvas, uniprot_id, reference_directory, results_directory)
->>>>>>> hdf5-results
         cmd.reinitialize()
 # reference_directory = '../sir-reference-data/'
 reference_directory = './'
