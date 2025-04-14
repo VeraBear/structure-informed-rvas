@@ -81,12 +81,21 @@ def get_all_pvals(
     df_pvals = df_pvals[['nbhd_case', 'nbhd_control'] + pval_columns + ['ratio']]
     return df_pvals, adjacency_matrix
 
-def compute_fdr(results_dir, large_p_threshold = 0.05):
+def compute_fdr(results_dir, df_aa_pos, large_p_threshold = 0.05):
+    print('computing fdr')
     to_concat = []
+
+    if df_aa_pos is not None:
+        index_filter = {}
     with h5py.File(os.path.join(results_dir, 'p_values.h5'), 'a') as fid:
         uniprot_ids = [k for k in fid.keys() if '_' not in k]
         for uniprot_id in uniprot_ids:
             df = read_p_values(fid, uniprot_id)
+            
+            if df_aa_pos is not None:
+                aa_pos_keep = set(df_aa_pos.loc[df_aa_pos.uniprot_id == uniprot_id, 'aa_pos'].values)
+                index_filter[uniprot_id] = np.array([x+1 in aa_pos_keep for x in range(len(df))])
+                df = df[index_filter[uniprot_id]]
             to_concat.append(df)
         df_pvals = pd.concat(to_concat)
         to_concat = None
@@ -95,7 +104,11 @@ def compute_fdr(results_dir, large_p_threshold = 0.05):
         false_discoveries_avg = np.zeros(df_pvals.shape[0])
         num_large_p = 0
         for uniprot_id in uniprot_ids:
-            null_pvals = fid[f'{uniprot_id}_null_pval'][:].flatten()
+            null_pvals = fid[f'{uniprot_id}_null_pval'][:]
+            if df_aa_pos is not None:
+                f = index_filter[uniprot_id]
+                null_pvals = null_pvals[f,:]
+            null_pvals = null_pvals.flatten()
             num_large_p += np.sum( null_pvals >= large_p_threshold )
             null_pvals = null_pvals[ null_pvals < large_p_threshold ]
             null_pvals = np.sort(null_pvals)
@@ -124,12 +137,23 @@ def scan_test_one_protein(df, pdb_file, results_dir, uniprot_id, radius, n_sims)
     df.to_csv(f'{results_prefix}.df_rvas.tsv', sep='\t', index=False)
     write_df_pvals(results_dir, uniprot_id, df_pvals)
 
-def scan_test(df_rvas, reference_dir, radius, results_dir, n_sims, no_fdr):
+def scan_test(df_rvas, reference_dir, radius, results_dir, n_sims, no_fdr, fdr_only, df_aa_pos):
     '''
     df_rvas is the output of map_to_protein. reference_dir has the pdb structures. this function
     should perform the scan test for all proteins and return a data frame with all the results.
     '''
+    print('performing scan test')
+
+    if fdr_only:
+        df_results = compute_fdr(results_dir, df_aa_pos)
+        df_results.to_csv(os.path.join(results_dir, 'all_proteins.fdr.tsv'), sep='\t', index=False)
+        return
+    
     uniprot_id_list = np.unique(df_rvas.uniprot_id)
+    if df_aa_pos is not None:
+        uniprot_id_list = np.intersect1d(uniprot_id_list, np.unique(df_aa_pos.uniprot_id))
+        
+
     n_proteins = len(uniprot_id_list)
     for i, uniprot_id in enumerate(uniprot_id_list):
         print('\n', uniprot_id, f'number {i} out of {n_proteins}')
@@ -149,6 +173,6 @@ def scan_test(df_rvas, reference_dir, radius, results_dir, n_sims, no_fdr):
             print(f'Error for {uniprot_id}: {e}')
             continue
     if not no_fdr:
-        df_results = compute_fdr(results_dir)
+        df_results = compute_fdr(results_dir, df_aa_pos)
         df_results.to_csv(os.path.join(results_dir, 'all_proteins.fdr.tsv'), sep='\t', index=False)
     
