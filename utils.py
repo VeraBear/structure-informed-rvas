@@ -43,7 +43,7 @@ def get_pairwise_distances(pdb_file, *args):
 
 def get_distance_matrix_structure(pdb_file_pos_guide, pdb_dir, uniprot_id):
     info = pd.read_csv(pdb_file_pos_guide, sep="\t")
-    pdb_files = info.loc[info.filename.str.contains(uniprot_id),'filename']
+    pdb_files = info.loc[info.pdb_filename.str.contains(uniprot_id),'filename']
     ## Version 2: central on top of all
     if len(pdb_files)==0:
         raise Exception("Protein not found.")
@@ -65,13 +65,13 @@ def get_distance_matrix_structure(pdb_file_pos_guide, pdb_dir, uniprot_id):
         cum_nAA=0
         # Calculate distance matrix for the entire pdb range
         for pdb in range(0,info.shape[0]):
-            pathfile = os.path.join(pdb_dir, info.filename.values[pdb])
+            pathfile = os.path.join(pdb_dir, info.pdb_filename.values[pdb])
             i = info.startAA[pdb]
             j = info.endAA[pdb]
             distance_matrix[i-1:j,i-1:j] = get_pairwise_distances(pathfile)
         # Substitute overlapping part using "most central" rule
         for pdb in range(0,info.shape[0]):
-            pathfile = os.path.join(pdb_dir, info.filename.values[pdb])
+            pathfile = os.path.join(pdb_dir, info.pdb_filename.values[pdb])
             i = info.i[pdb]
             j = info.j[pdb]-1
             i_in_pdb = i-(info.startAA[pdb]-1)
