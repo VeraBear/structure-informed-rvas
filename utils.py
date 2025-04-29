@@ -50,9 +50,7 @@ def get_distance_matrix_structure(pdb_file_pos_guide, pdb_dir, uniprot_id):
     elif len(pdb_files)==1:
         # One pdb file in structure
         pathfile = os.path.join(pdb_dir, pdb_files.iloc[0])
-        i = int(re.findall(r"\d+", info.loc[pdb_files.index[0],'pos_covered'])[0])
-        j = int(re.findall(r"\d+", info.loc[pdb_files.index[0],'pos_covered'])[1])
-        distance_matrix = get_pairwise_distances(pathfile, i, j)
+        distance_matrix = get_pairwise_distances(pathfile)
     else:
         # Multiple pdb files in structure
         info = info.iloc[pdb_files.index].copy().reset_index()
@@ -69,9 +67,7 @@ def get_distance_matrix_structure(pdb_file_pos_guide, pdb_dir, uniprot_id):
         for pdb in range(0,info.shape[0]):
             pathfile = os.path.join(pdb_dir, info.filename.values[pdb])
             i = info.startAA[pdb]
-            j = info.endAA[pdb]-1
-            if (pdb==info.shape[0]-1):
-                j=j+1
+            j = info.endAA[pdb]
             distance_matrix[i-1:j,i-1:j] = get_pairwise_distances(pathfile)
         # Substitute overlapping part using "most central" rule
         for pdb in range(0,info.shape[0]):
