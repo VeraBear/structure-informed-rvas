@@ -46,7 +46,7 @@ def get_distance_matrix_structure(pdb_file_pos_guide, pdb_dir, uniprot_id):
     pdb_files = info.loc[info.pdb_filename.str.contains(uniprot_id),'filename']
     ## Version 2: central on top of all
     if len(pdb_files)==0:
-        raise Exception("Protein not found.")
+        raise Exception(f"Protein {uniprot_id} not found.")
     elif len(pdb_files)==1:
         # One pdb file in structure
         pathfile = os.path.join(pdb_dir, pdb_files.iloc[0])
@@ -56,10 +56,10 @@ def get_distance_matrix_structure(pdb_file_pos_guide, pdb_dir, uniprot_id):
         info = info.iloc[pdb_files.index].copy().reset_index()
         info['startAA'] = info.apply(lambda x: int(re.findall(r"\d+", x.pos_covered)[0]), axis=1)
         info['endAA'] = info.apply(lambda x: int(re.findall(r"\d+", x.pos_covered)[1]), axis=1)
-        nAA = info.endAA.values[-1]
-        info['startAA_next'] = info.startAA.shift(periods=-1, fill_value=nAA+1)
-        info['j'] = np.floor((info.endAA+info.startAA_next-1)/2).astype(int) + 1
-        info['i'] = info.j.shift(periods=1, fill_value=1)
+        nAA = info.endAA.max()
+        info['startAA_next'] = info.startAA.shift(periods=-1, fill_value=nAA)
+        info['j'] = np.floor((info.endAA+info.startAA_next)/2).astype(int)
+        info['i'] = info.j.shift(periods=1, fill_value=0)+1
     
         distance_matrix = np.full(shape=(nAA,nAA), fill_value=np.inf)
         cum_nAA=0
@@ -73,12 +73,17 @@ def get_distance_matrix_structure(pdb_file_pos_guide, pdb_dir, uniprot_id):
         for pdb in range(0,info.shape[0]):
             pathfile = os.path.join(pdb_dir, info.pdb_filename.values[pdb])
             i = info.i[pdb]
-            j = info.j[pdb]-1
+            j = info.j[pdb]
             i_in_pdb = i-(info.startAA[pdb]-1)
             j_in_pdb = j-(info.startAA[pdb]-1)
-            nAA_in_pdb = j-i+1
+            nAA_in_pdb = j_in_pdb - i_in_pdb + 1
+            print(nAA_in_pdb)
+            print(i_in_pdb)
+            print(j_in_pdb)
+            print(cum_nAA)
+            print("\n")
             distance_matrix[cum_nAA:cum_nAA+nAA_in_pdb, cum_nAA:cum_nAA+nAA_in_pdb] = get_pairwise_distances(pathfile, i_in_pdb, j_in_pdb)
-            cum_nAA = cum_nAA+nAA_in_pdb
+            cum_nAA = cum_nAA + nAA_in_pdb 
 
     return distance_matrix
 
