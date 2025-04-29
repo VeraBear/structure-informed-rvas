@@ -119,11 +119,13 @@ def get_case_control_ac_matrix(df, n_res, n_sim):
 
 def get_all_pvals(
         df,
-        pdb_file,
+        pdb_file_pos_guide,
+        pdb_dir,
+        uniprot_id,
         n_sims,
         radius = 15,
 ):
-    adjacency_matrix = get_adjacency_matrix(pdb_file, radius)
+    adjacency_matrix = get_adjacency_matrix(pdb_file_pos_guide, pdb_dir, uniprot_id, radius)
     n_res = adjacency_matrix.shape[0]
     
     case_ac_matrix, control_ac_matrix = get_case_control_ac_matrix(df, n_res, n_sims)
@@ -210,9 +212,16 @@ def write_df_pvals(results_dir, uniprot_id, df_pvals):
         write_dataset(fid, f'{uniprot_id}_null_pval', df_pvals[null_pval_cols])
         write_dataset(fid, f'{uniprot_id}_nbhd', df_pvals[['nbhd_case', 'nbhd_control']])
 
-def scan_test_one_protein(df, pdb_file, results_dir, uniprot_id, radius, n_sims):
+def scan_test_one_protein(df, pdb_file_pos_guide, pdb_dir, results_dir, uniprot_id, radius, n_sims):
     results_prefix = os.path.join(results_dir, uniprot_id)
-    df_pvals, adj_mat = get_all_pvals(df, pdb_file, n_sims, radius)
+    df_pvals, adj_mat = get_all_pvals(
+        df,
+        pdb_file_pos_guide,
+        pdb_dir,
+        uniprot_id,
+        n_sims,
+        radius,
+    )
     np.save(f'{results_prefix}.adj_mat.npy', adj_mat)
     df.to_csv(f'{results_prefix}.df_rvas.tsv', sep='\t', index=False)
     write_df_pvals(results_dir, uniprot_id, df_pvals)
@@ -233,28 +242,20 @@ def scan_test(df_rvas, reference_dir, radius, results_dir, n_sims, no_fdr, fdr_o
     if df_fdr_filter is not None:
         uniprot_id_list = np.intersect1d(uniprot_id_list, np.unique(df_fdr_filter.uniprot_id))
         
-
     n_proteins = len(uniprot_id_list)
     for i, uniprot_id in enumerate(uniprot_id_list):
         print('\n', uniprot_id, f'number {i} out of {n_proteins}')
-        try:
-            df = df_rvas[df_rvas.uniprot_id == uniprot_id]
-            if len(np.unique(df.pdb_filename)) > 1:
-                print('skipping when there is more than one pdb file')
-                continue
-            if (sum(df.ac_case) < 5) or (sum(df.ac_control) < 5):
-                print('there must be at least 5 case and 5 control alleles. skipping.')
-                continue
-            pdb_filename = np.unique(df.pdb_filename)[0]
-            df = df[df.pdb_filename == pdb_filename].reset_index(drop=True)
-            full_pdb_filename = os.path.join(reference_dir, 'pdb_files', pdb_filename)
-            if not os.path.isfile(full_pdb_filename):
-                print('missing pdb file. skipping.')
-                continue
-            scan_test_one_protein(df, full_pdb_filename, results_dir, uniprot_id, radius, n_sims)
-        except Exception as e:
-            print(f'Error for {uniprot_id}: {e}')
+        # try:
+        df = df_rvas[df_rvas.uniprot_id == uniprot_id]
+        if (sum(df.ac_case) < 5) or (sum(df.ac_control) < 5):
+            print('there must be at least 5 case and 5 control alleles. skipping.')
             continue
+        pdb_file_pos_guide = f'{reference_dir}/pdb_file_pos_guide.tsv'
+        pdb_dir = f'{reference_dir}/pdb_files/'
+        scan_test_one_protein(df, pdb_file_pos_guide, pdb_dir, results_dir, uniprot_id, radius, n_sims)
+        # except Exception as e:
+        #     print(f'Error for {uniprot_id}: {e}')
+            # continue
     if not no_fdr:
         df_results = compute_fdr(results_dir, df_fdr_filter)
         df_results.to_csv(os.path.join(results_dir, 'all_proteins.fdr.tsv'), sep='\t', index=False)
