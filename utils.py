@@ -4,8 +4,10 @@ from Bio.PDB import PDBParser
 import gzip
 import sklearn.metrics
 import hdf5plugin
+import os
+import re
 
-def get_pairwise_distances_vanilla(pdb_file):
+def get_pairwise_distances(pdb_file, *args):
     parser = PDBParser(QUIET=True)
     if pdb_file.endswith('.gz'):
         with gzip.open(pdb_file, 'rt') as handle:
@@ -20,27 +22,16 @@ def get_pairwise_distances_vanilla(pdb_file):
             for residue in chain:
                 if 'CA' in residue:
                     ca_atoms.append(residue['CA'].get_coord())
-    ca_atoms = np.array(ca_atoms)
-    pairwise_distances = sklearn.metrics.pairwise_distances(ca_atoms)
-    return pairwise_distances
-
-
-def get_pairwise_distances(pdb_file, i, j):
-    parser = PDBParser(QUIET=True)
-    if pdb_file.endswith('.gz'):
-        with gzip.open(pdb_file, 'rt') as handle:
-            structure = parser.get_structure("protein", handle)
+   
+    if len(args) > 1:
+        i = args[0]
+        j = args[1]
+        ca_atoms = np.array(ca_atoms[i-1:j])
+    elif len(args) > 0:
+        i = args[0]
+        ca_atoms = np.array(ca_atoms[i-1:])
     else:
-        with open(pdb_file, 'r') as handle:
-            structure = parser.get_structure("protein", handle)
-
-    ca_atoms = []
-    for model in structure:
-        for chain in model:
-            for residue in chain:
-                if 'CA' in residue:
-                    ca_atoms.append(residue['CA'].get_coord())
-    ca_atoms = np.array(ca_atoms[i-1:j])
+        ca_atoms = np.array(ca_atoms)
     pairwise_distances = sklearn.metrics.pairwise_distances(ca_atoms)
     return pairwise_distances
 
@@ -68,7 +59,7 @@ def get_distance_matrix_structure(info_file, pdb_path, uniprot_id):
         info['j'] = np.floor((info.endAA+info.startAA_next-1)/2).astype(int) + 1
         info['i'] = info.j.shift(periods=1, fill_value=1)
     
-        distance_matrix = np.full(shape=(nAA,nAA), fill_value=np.inf)
+        distance_matrix2 = np.full(shape=(nAA,nAA), fill_value=np.inf)
         cum_nAA=0
         # Calculate distance matrix for the entire pdb range
         for pdb in range(0,info.shape[0]):
@@ -77,9 +68,7 @@ def get_distance_matrix_structure(info_file, pdb_path, uniprot_id):
             j = info.endAA[pdb]-1
             if (pdb==info.shape[0]-1):
                 j=j+1
-            i_in_pdb = i-(info.startAA[pdb]-1)
-            j_in_pdb = j-(info.startAA[pdb]-1)
-            distance_matrix[i-1:j,i-1:j] = get_pairwise_distances(pathfile, i_in_pdb, j_in_pdb)
+            distance_matrix2[i-1:j,i-1:j] = get_pairwise_distances(pathfile)
         # Substitute overlapping part using "most central" rule
         for pdb in range(0,info.shape[0]):
             pathfile = os.path.join(pdb_path, info.filename.values[pdb])
@@ -88,7 +77,7 @@ def get_distance_matrix_structure(info_file, pdb_path, uniprot_id):
             i_in_pdb = i-(info.startAA[pdb]-1)
             j_in_pdb = j-(info.startAA[pdb]-1)
             nAA_in_pdb = j-i+1
-            distance_matrix[cum_nAA:cum_nAA+nAA_in_pdb, cum_nAA:cum_nAA+nAA_in_pdb] = get_pairwise_distances(pathfile, i_in_pdb, j_in_pdb)
+            distance_matrix2[cum_nAA:cum_nAA+nAA_in_pdb, cum_nAA:cum_nAA+nAA_in_pdb] = get_pairwise_distances(pathfile, i_in_pdb, j_in_pdb)
             cum_nAA = cum_nAA+nAA_in_pdb
 
     return distance_matrix
