@@ -4,6 +4,8 @@ from Bio.PDB import PDBParser
 import gzip
 import sklearn.metrics
 import hdf5plugin
+import os
+import re
 
 def get_pairwise_distances_vanilla(pdb_file):
     parser = PDBParser(QUIET=True)
