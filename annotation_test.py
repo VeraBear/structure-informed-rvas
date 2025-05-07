@@ -5,7 +5,6 @@ import gzip
 import functools
 import numpy as np
 import pandas as pd
-from Bio.PDB import PDBParser
 from utils import valid_for_fisher, get_adjacency_matrix
 from scipy import stats
 import statsmodels.stats.multitest as multitest
