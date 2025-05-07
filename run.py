@@ -2,6 +2,7 @@ import argparse
 import pandas as pd
 import os
 from scan_test import scan_test
+from annotation_test import annotation_test
 from read_data import map_to_protein
 # from annotation_test import annotation_test
 
