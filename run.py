@@ -214,6 +214,7 @@ if __name__ == '__main__':
             args.annotation_file,
             args.reference_dir,
             args.neighborhood_radius,
+            args.results_dir,
             args.filter_file,
         )
     
