@@ -106,10 +106,10 @@ if __name__ == '__main__':
         help='directory to write results',
     )
     parser.add_argument(
-        '--no-ac-filter',
-        action='store_true',
-        default=False,
-        help='use this flag if you *do* want to include variants with AC>10.'
+        '--ac-filter',
+        type=int,
+        default=10,
+        help='filter out AC greater than this.'
     )
     parser.add_argument(
         '--df-fdr-filter',
@@ -135,6 +135,18 @@ if __name__ == '__main__':
         default=0.05,
         help='fdr cutoff for summarizing results'
     )
+    parser.add_argument(
+        '--ignore-ac',
+        action='store_true',
+        default=False,
+        help='count every variant only once',
+    )
+    parser.add_argument(
+        '--fdr-file',
+        type=str,
+        default='all_proteins.fdr.tsv',
+        help='file in the results directory to write the fdrs to'
+    )
     args = parser.parse_args()
 
     if args.rvas_data_to_map is not None:
@@ -158,7 +170,7 @@ if __name__ == '__main__':
         })
     else:
         df_rvas = None
-
+    
     if args.pdb_filename is not None:
         df_rvas['pdb_filename'] = args.pdb_filename
 
@@ -169,8 +181,8 @@ if __name__ == '__main__':
             which_proteins = args.which_proteins.split(',')
         df_rvas = df_rvas[df_rvas.uniprot_id.isin(which_proteins)]
 
-    if (df_rvas is not None) and (not args.no_ac_filter):
-        df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < 10]
+    if df_rvas is not None:
+        df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < args.ac_filter]
 
     if args.df_fdr_filter is not None:
         df_fdr_filter = pd.read_csv(args.df_fdr_filter, sep='\t')
@@ -193,6 +205,8 @@ if __name__ == '__main__':
             args.fdr_only,
             args.fdr_cutoff,
             df_fdr_filter,
+            args.ignore_ac,
+            args.fdr_file,
         )
     
     elif args.clinvar_test:
