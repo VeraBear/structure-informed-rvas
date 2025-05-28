@@ -149,7 +149,7 @@ def annotation_test(
                                          df_rvas=df_rvas,
                                          pdb_file_pos_guide=pdb_file_pos_guide, 
                                          pdb_dir=pdb_dir,
-                                         pae_dir=pae_dir
+                                         pae_dir=pae_dir,
                                          results_dir=results_dir,
                                          df_annot = df_annot,
                                          df_filter = df_filter,
