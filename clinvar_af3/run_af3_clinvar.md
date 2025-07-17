@@ -1,0 +1,15 @@
+Start with a dataframe that has the proteins you care about, with columns 'uniprot_id' and 'sequence'; you should have a directory 'reference' that contains these files: all_missense_variants_gr38.h5, all_missense_variants_gr38.tsv.gz, BioPlex_293T_Network_10K_Dec_2019.tsv, pdb_pae_file_pos_guide.tsv, uniprot_summary.csv, gene_to_uniprot_id.tsv, and a pdb_files directory that contains all the alphafold predicted structures of the proteins; you should also have a directory 'raw_ClinVar' that contains all the clinvar infomation (All these files can be found in our dropbox)
+
+Step 1: Run 'python run.py --create-raw-clinvar-rvas-files your_dir_for_generated_input_files --reference-dir reference --protein-sequences your_protein_seqs_df' to get the rvas files for each chromosome 'your_dir_for_generated_input_files/uniprot_clinvar_rvas/clinvar_grch38_annotated_2_chr{i}_rvas.tsv.gz' based on clinvar data 
+
+Step 2: Run 'python run.py --get-bioplex-interacting-partners your_dir_for_generated_input_file --create-af3-jobs your_dir_for_af3_jobs --reference-dir reference --protein-sequences your_protein_seqs_df' to generate json files that can be used to run AF3 server 
+
+Step 3: Run AF3 server using the job files generated in the previous step and place the results in a dir 'af3_results' as unzipped folders
+
+Step 4: Run 'python run.py --get-interfaces-from-af3-results af3_results your_dir_for_generated_input_files --reference reference --protein-sequences your_protein_seqs_df' to generate the annotation file 'your_dir_for_generated_input_files/af3_interfaces_annot_combined.tsv' that have all chromosomes
+
+Step 5: Run 'python run.py --create-annotation-file-by-chromosome your_dir_for_generated_input_files --reference reference --protein-sequences your_protein_seqs_df' to generate the annotation file for each chromosome 'your_dir_for_generated_input_files/annotation_files_by_chr/af3_interfaces_annot_chr{i}.tsv' that will be use to run the structure-informed-rvas
+
+Step 6: Run 'bash run_annotation_all_clinvar.sh' to run annotation test for these proteins and get results by chromosomes in 'result/af3_interfaces_annot_chr{i}/', you have to change the first four lines of the bash script to the correct directory: input_dir should be 'your_dir_for_generated_input_file', reference_dir should be where your 'reference' is, and structure_informed_rvas_dir should be where your structure-informed-rvas repo is locally, protein_list should be 'your_dir_for_generated_input_file/protein_list.txt'
+
+Step 7: Run 'python run.py --clean-result result your_dir_for_generated_input_file --reference-dir reference --protein-sequences your_protein_seqs_df' to get a cleaned and aggregated results that contains gene names, aa_pos, and a fdr correction column 'p_fdr_all_chr' corrected for all the p values in the result file 

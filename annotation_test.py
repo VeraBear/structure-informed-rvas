@@ -11,16 +11,16 @@ import statsmodels.stats.multitest as multitest
 
 
 
-def perform_fischer_exact(inCas, outCas, inCon, outCon, uniprot_id) :
+def perform_fischer_exact(inCas, outCas, inCon, outCon, annotation_id, uniprot_id) :
     contingency_table = np.array([ [inCas, outCas], [inCon, outCon] ])
     if valid_for_fisher(contingency_table):
-        print(f'{uniprot_id}: Ran Fischer\'s exact test.')
+        print(f'{annotation_id}: Ran Fischer\'s exact test.')
         o, p = stats.fisher_exact(contingency_table)
     else:
-        print(f'{uniprot_id}: Not valid for Fischer\'s exact test.')
+        print(f'{annotation_id}: Not valid for Fischer\'s exact test.')
         o = np.nan
         p = np.nan
-    return (uniprot_id, inCas, outCas, inCon, outCon, o, p)
+    return (uniprot_id, annotation_id, inCas, outCas, inCon, outCon, o, p)
 
 
 def perform_fdr_corretion(p):
@@ -35,8 +35,11 @@ def perform_fdr_corretion(p):
 
     return p_fdr, p_reject
 
-def expand_annot_neighborhood(df_annot, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, uniprot_id, radius, pae_cutoff):
+def expand_annot_neighborhood(df_annot, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, annotation_id, radius, pae_cutoff):
+    df_subset = df_annot[df_annot['annotation_id'] == annotation_id]
     resAnnot = np.sort(df_annot.aa_pos.unique())
+    uniprot_id = df_subset.uniprot_id.unique()[0]
+
     if len(resAnnot)==0:
         return np.array([])
     if os.path.isfile(os.path.join(results_dir,f'{uniprot_id}.adj_mat.npy')):
@@ -51,10 +54,9 @@ def expand_annot_neighborhood(df_annot, pdb_file_pos_guide, pdb_dir, pae_dir, re
     
     adjacency_matrix = adjacency_matrix[:, resAnnot_checked-1] # restrict columns to annotation residues (correct for zero-based indexing)
     is_neighbor = adjacency_matrix.max(axis=1)
-    return np.where(is_neighbor>0)[0]
-    
+    return np.where(is_neighbor>0)[0]    
 
-def loop_proteins(uniprot_id, df_rvas, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, df_annot, df_filter, radius, pae_cutoff):
+def loop_proteins(annotation_id, df_rvas, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, df_annot, df_filter, radius, pae_cutoff):
 
 #    ## some sanity checks
 #    info = pd.read_csv(pdb_file_pos_guide, sep="\t")
@@ -67,12 +69,15 @@ def loop_proteins(uniprot_id, df_rvas, pdb_file_pos_guide, pdb_dir, pae_dir, res
 #            warnings.warn(f"Warning: PDB file(s) for '{uniprot_id}' not found. skipping.")
 #            return (uniprot_id, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan)
     
-    df_annot = df_annot[df_annot.uniprot_id == uniprot_id]
+    print('annotation_id:', annotation_id)
+    df_annot = df_annot[df_annot.annotation_id == annotation_id]
+    uniprot_id = df_annot.uniprot_id.unique()[0]
+    
     if radius>0:
-        expanded_annot_residues = expand_annot_neighborhood(df_annot, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, uniprot_id, radius, pae_cutoff)
+        expanded_annot_residues = expand_annot_neighborhood(df_annot, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, annotation_id, radius, pae_cutoff)
         n_annot = expanded_annot_residues.shape[0]
         ## if expanding, specific aminoacid changes are no longer relevant - drop
-        df_annot = pd.DataFrame({'uniprot_id': [uniprot_id]*n_annot, 'aa_pos': expanded_annot_residues})
+        df_annot = pd.DataFrame({'annotation_id': [annotation_id]*n_annot, 'aa_pos': expanded_annot_residues})
     
     df_rvas_curr = df_rvas[df_rvas.uniprot_id == uniprot_id].copy()
     #df_rvas_curr['hasAnnot'] = 0
@@ -84,8 +89,8 @@ def loop_proteins(uniprot_id, df_rvas, pdb_file_pos_guide, pdb_dir, pae_dir, res
     n_res_annot = (df_rvas_curr.hasAnnot*1).sum()
     if n_res_annot==0:
         ## If no annotation found for uniprot_id
-        print(f'{uniprot_id}: No annotated variants found.')
-        return (uniprot_id, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan)
+        print(f'{annotation_id}: No annotated variants found.')
+        return (annotation_id, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan)
 
     ## Filter rvas data frame
     n_res_annot_filtered = np.nan
@@ -96,8 +101,8 @@ def loop_proteins(uniprot_id, df_rvas, pdb_file_pos_guide, pdb_dir, pae_dir, res
         
     if n_res_annot_filtered==0:
         ## If no annotated residues remain after filtering
-        print(f'{uniprot_id}: No variants remain after filtering.')
-        return (uniprot_id, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan)
+        print(f'{annotation_id}: No variants remain after filtering.')
+        return (annotation_id, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan)
 
     ### Perform Fischer's exact test
     inCas = df_rvas_curr.loc[df_rvas_curr.hasAnnot.astype(bool), 'ac_case'].sum()
@@ -105,7 +110,7 @@ def loop_proteins(uniprot_id, df_rvas, pdb_file_pos_guide, pdb_dir, pae_dir, res
     outCas = df_rvas_curr.loc[~df_rvas_curr.hasAnnot.astype(bool), 'ac_case'].sum()
     outCon = df_rvas_curr.loc[~df_rvas_curr.hasAnnot.astype(bool), 'ac_control'].sum()
     
-    return perform_fischer_exact(inCas, outCas, inCon, outCon, uniprot_id)
+    return perform_fischer_exact(inCas, outCas, inCon, outCon, annotation_id, uniprot_id)
 
 
 def check_pdb_files_exist(uniprot_id, pdb_dir, pdb_file_list):
@@ -133,11 +138,15 @@ def annotation_test(
     pdb_file_pos_guide = f'{reference_dir}/pdb_pae_file_pos_guide.tsv'
     pdb_dir = f'{reference_dir}/pdb_files/'
     pae_dir = f'{reference_dir}/pae_files/'
-    
+
+    print('pae dir exists:', os.path.exists(pae_dir))
+    if not os.path.exists(pae_dir):
+        pae_dir = None
+
     try:
         print(df_rvas)
         uniprot_id_list = df_rvas.uniprot_id.unique()
-        print(f"Found {len(uniprot_id_list)} unique UniProt IDs")
+        print(f"Found {len(uniprot_id_list)} unique UniProt IDs.")
     except AttributeError:
         print("Error: df_rvas is not defined or doesn't have a 'uniprot_id' attribute")
     except Exception as e:
@@ -171,6 +180,9 @@ def annotation_test(
 
     uniprot_id_list = uniprot_id_list = list(set(uniprot_id_list) & set(uniprot_id_list_annot))
     
+    annotation_id_list = df_annot.annotation_id.unique()
+    print('annotation_id_list:', annotation_id_list)    
+
     ## check if pdb files exist for uniprot_ids
     #print(f'Checking PDB files for all proteins...')
     #info = pd.read_csv(pdb_file_pos_guide, sep="\t")
@@ -190,17 +202,19 @@ def annotation_test(
                                          df_filter = df_filter,
                                          radius=neighborhood_radius,
                                          pae_cutoff=pae_cutoff), 
-                       uniprot_id_list))
+                       annotation_id_list))
+                                         
     # this list will contain an entry per protein, which will be a tuple (size 7) constisting of:
     # - the uniprot_id
     # - the contingency table (4 entries)
     # - the odds ratio
     # - the pvalue of the Fischer's exact test
+    print('fet:', fet)
 
     pvals = [item[6] for item in fet]
     p_fdr, fdr_reject = perform_fdr_corretion(pvals)
     
-    df_fet = pd.DataFrame(fet, columns=['uniprot_id', 'in_case', 'out_case', 'in_control', 'out_control', 'or', 'p'])
+    df_fet = pd.DataFrame(fet, columns=['uniprot_id', 'annotation_id', 'in_case', 'out_case', 'in_control', 'out_control', 'or', 'p'])
     df_fet['p_fdr'] = p_fdr
     df_fet['fdr_reject'] = fdr_reject
     df_fet = df_fet.sort_values(by='p_fdr')

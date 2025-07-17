@@ -163,7 +163,11 @@ def get_pae_matrix_structure(pae_file_pos_guide, pae_dir, uniprot_id):
 
 def get_adjacency_matrix(pdb_pae_file_pos_guide, pdb_dir, pae_dir, uniprot_id, radius, pae_cutoff):
     distance_matrix = get_distance_matrix_structure(pdb_pae_file_pos_guide, pdb_dir, uniprot_id)
-    pae_matrix = get_pae_matrix_structure(pdb_pae_file_pos_guide, pae_dir, uniprot_id)
+    if pae_dir is None:
+        pae_matrix = None
+    else:
+        pae_matrix = get_pae_matrix_structure(pdb_pae_file_pos_guide, pae_dir, uniprot_id)
+    
     dist_thresh = (distance_matrix < radius) * 1
     if pae_matrix == None:
         adj_mat = dist_thresh
@@ -171,7 +175,8 @@ def get_adjacency_matrix(pdb_pae_file_pos_guide, pdb_dir, pae_dir, uniprot_id, r
         pae_thresh = (pae_matrix < pae_cutoff) * 1
         adj_mat = dist_thresh & pae_thresh
     return adj_mat
-    
+
+
 def valid_for_fisher(contingency_table):
     valid_columns = np.all(np.sum(contingency_table, axis=0) > 0)
     valid_rows = np.all(np.sum(contingency_table, axis=1) > 0)
