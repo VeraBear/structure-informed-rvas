@@ -121,11 +121,20 @@ def get_all_pvals(
         df,
         pdb_file_pos_guide,
         pdb_dir,
+        pae_dir,
         uniprot_id,
         n_sims,
         radius = 15,
+        pae_cutoff = 15,
 ):
-    adjacency_matrix = get_adjacency_matrix(pdb_file_pos_guide, pdb_dir, uniprot_id, radius)
+    adjacency_matrix = get_adjacency_matrix(
+        pdb_file_pos_guide,
+        pdb_dir,
+        pae_dir,
+        uniprot_id,
+        radius,
+        pae_cutoff,
+    )
     n_res = adjacency_matrix.shape[0]
     
     case_ac_matrix, control_ac_matrix = get_case_control_ac_matrix(df, n_res, n_sims)
@@ -163,7 +172,7 @@ def scan_test_one_protein(df, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir,
         radius,
         pae_cutoff,
     )
-    np.save(f'{results_prefix}.adj_mat.npy', adj_mat)
+    # np.save(f'{results_prefix}.adj_mat.npy', adj_mat)
     df.to_csv(f'{results_prefix}.df_rvas.tsv', sep='\t', index=False)
     write_df_pvals(results_dir, uniprot_id, df_pvals)
 
@@ -317,34 +326,36 @@ def scan_test(
         df_results = compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir, annot_file=annot_file)
         df_results.to_csv(os.path.join(results_dir, fdr_file), sep='\t', index=False)
         return
-    
+
     if ignore_ac:
         df_rvas['ac_case'] = (df_rvas['ac_case'] > 0).astype(int)
         df_rvas['ac_control'] = (df_rvas['ac_control'] > 0).astype(int)
         df_rvas['to_drop'] = df_rvas['ac_case'] + df_rvas['ac_control'] > 1
         df_rvas = df_rvas[~df_rvas.to_drop].copy()
         df_rvas.drop('to_drop', axis=1, inplace=True)
-    
-    uniprot_id_list = np.unique(df_rvas.uniprot_id)
+        
+    grouped = df_rvas.groupby('uniprot_id')[['ac_case', 'ac_control']].sum()
+    ac_high_enough = grouped[(grouped['ac_case'] > 5) & (grouped['ac_control'] > 5)]
+    uniprot_id_list = ac_high_enough.index.tolist()
     if df_fdr_filter is not None:
         uniprot_id_list = np.intersect1d(uniprot_id_list, np.unique(df_fdr_filter.uniprot_id))
         
     n_proteins = len(uniprot_id_list)
     for i, uniprot_id in enumerate(uniprot_id_list):
         print('\n', uniprot_id, f'number {i} out of {n_proteins}')
-        # try:
-        df = df_rvas[df_rvas.uniprot_id == uniprot_id]
-        if (sum(df.ac_case) < 5) or (sum(df.ac_control) < 5):
-            print('there must be at least 5 case and 5 control alleles. skipping.')
+        try:
+            df = df_rvas[df_rvas.uniprot_id == uniprot_id]
+            if (sum(df.ac_case) < 5) or (sum(df.ac_control) < 5):
+                print('there must be at least 5 case and 5 control alleles. skipping.')
+                continue
+            pdb_file_pos_guide = f'{reference_dir}/pdb_pae_file_pos_guide.tsv'
+            pdb_dir = f'{reference_dir}/pdb_files/'
+            pae_dir = f'{reference_dir}/pae_files/'
+            scan_test_one_protein(df, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, uniprot_id, radius, pae_cutoff, n_sims)
+        except Exception as e:
+            print(f'Error for {uniprot_id}: {e}')
             continue
-        pdb_file_pos_guide = f'{reference_dir}/pdb_pae_file_pos_guide.tsv'
-        pdb_dir = f'{reference_dir}/pdb_files/'
-        pae_dir = f'{reference_dir}/pae_files/'
-        scan_test_one_protein(df, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, uniprot_id, radius, pae_cutoff, n_sims)
-        # except Exception as e:
-        #     print(f'Error for {uniprot_id}: {e}')
-            # continue
     if not no_fdr:
         df_results = compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir, annot_file=annot_file)
-        df_results.to_csv(os.path.join(results_dir, fdr_file), sep='\t', index=False)
+        df_results.to_csv(os.path.join(fdr_file), sep='\t', index=False)
     

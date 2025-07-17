@@ -115,7 +115,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--ac-filter',
         type=int,
-        default=10,
+        default=5,
         help='filter out AC greater than this.'
     )
     parser.add_argument(
@@ -192,12 +192,20 @@ if __name__ == '__main__':
         df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < args.ac_filter]
 
     if args.df_fdr_filter is not None:
-        df_fdr_filter = pd.read_csv(args.df_fdr_filter, sep='\t')
-        if 'aa_pos' in df_fdr_filter.columns:
-            df_fdr_filter = df_fdr_filter[['uniprot_id', 'aa_pos']]
-        else:
-            df_fdr_filter = df_fdr_filter[['uniprot_id']]
-        df_fdr_filter = df_fdr_filter.drop_duplicates()
+        filter_files = args.df_fdr_filter.split(',')
+        def read_filter_file(f):
+            df_fdr_filter = pd.read_csv(f, sep='\t')
+            if 'aa_pos' in df_fdr_filter.columns:
+                df_fdr_filter = df_fdr_filter[['uniprot_id', 'aa_pos']]
+            else:
+                df_fdr_filter = df_fdr_filter[['uniprot_id']]
+            df_fdr_filter = df_fdr_filter.drop_duplicates()
+            return df_fdr_filter
+        df_fdr_filter = read_filter_file(filter_files[0])
+        if len(filter_files) > 1:
+            for f in filter_files[1:]:
+                next_fdr_filter = read_filter_file(f)
+                df_fdr_filter = pd.merge(df_fdr_filter, next_fdr_filter)
     else:
         df_fdr_filter = None
 

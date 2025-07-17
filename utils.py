@@ -165,7 +165,7 @@ def get_adjacency_matrix(pdb_pae_file_pos_guide, pdb_dir, pae_dir, uniprot_id, r
     distance_matrix = get_distance_matrix_structure(pdb_pae_file_pos_guide, pdb_dir, uniprot_id)
     pae_matrix = get_pae_matrix_structure(pdb_pae_file_pos_guide, pae_dir, uniprot_id)
     dist_thresh = (distance_matrix < radius) * 1
-    if pae_matrix == None:
+    if pae_matrix is None:
         adj_mat = dist_thresh
     else:
         pae_thresh = (pae_matrix < pae_cutoff) * 1
@@ -182,7 +182,9 @@ def valid_for_fisher(contingency_table):
         return False
 
 def write_dataset(fid, name, data, clevel=5):
-    dset = fid.create_dataset(
+    if name in fid:
+        del fid[name]
+    fid.create_dataset(
         name,
         data = data,
         compression = hdf5plugin.Zstd(clevel=clevel)
