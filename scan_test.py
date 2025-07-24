@@ -234,7 +234,6 @@ def summarize_results(df_results, fdr_cutoff, reference_dir, annot_file):
             ].drop_duplicates().copy()
         df_to_print = df_to_print.loc[df_to_print.groupby('uniprot_id')['fdr'].idxmin()]
         logger.info(f'Sample results:\n{df_to_print[0:20].to_string()}')
-        )
 
 
 def compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir, annot_file=None, large_p_threshold=0.05):
