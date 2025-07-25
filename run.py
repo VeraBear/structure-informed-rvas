@@ -158,6 +158,33 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
+    # Input validation
+    if args.genome_build not in ['hg37', 'hg38']:
+        raise ValueError(f"Invalid genome build: {args.genome_build}. Must be 'hg37' or 'hg38'")
+    
+    if args.neighborhood_radius <= 0:
+        raise ValueError(f"Neighborhood radius must be positive, got {args.neighborhood_radius}")
+    
+    if args.pae_cutoff <= 0:
+        raise ValueError(f"PAE cutoff must be positive, got {args.pae_cutoff}")
+    
+    if args.n_sims <= 0:
+        raise ValueError(f"Number of simulations must be positive, got {args.n_sims}")
+    
+    if args.ac_filter <= 0:
+        raise ValueError(f"AC filter must be positive, got {args.ac_filter}")
+    
+    if not (0 < args.fdr_cutoff < 1):
+        raise ValueError(f"FDR cutoff must be between 0 and 1, got {args.fdr_cutoff}")
+    
+    # Check required directories exist
+    if args.reference_dir and not os.path.exists(args.reference_dir):
+        raise FileNotFoundError(f"Reference directory not found: {args.reference_dir}")
+    
+    if args.results_dir and not os.path.exists(args.results_dir):
+        logger.info(f"Creating results directory: {args.results_dir}")
+        os.makedirs(args.results_dir, exist_ok=True)
+
     if args.rvas_data_to_map is not None:
         # map rvas results onto protein coordinates, linked to pdb files
         df_rvas = map_to_protein(
@@ -180,7 +207,11 @@ if __name__ == '__main__':
     else:
         df_rvas = None
     
-    if args.pdb_filename is not None:
+    # Only require data input if not doing FDR-only analysis
+    if df_rvas is None and not args.fdr_only:
+        raise ValueError("Must provide either --rvas-data-to-map or --rvas-data-mapped")
+    
+    if args.pdb_filename is not None and df_rvas is not None:
         df_rvas['pdb_filename'] = args.pdb_filename
 
     if not args.which_proteins=='all':

@@ -8,6 +8,7 @@ from scipy.stats import fisher_exact, binom
 from scipy import special
 from utils import get_adjacency_matrix, valid_for_fisher, write_dataset, read_p_values
 from logger_config import get_logger
+from empirical_fdr import compute_fdr
 
 logger = get_logger(__name__)
     
@@ -236,136 +237,6 @@ def summarize_results(df_results, fdr_cutoff, reference_dir, annot_file):
         logger.info(f'Sample results:\n{df_to_print[0:20].to_string()}')
 
 
-def _prepare_fdr_filters(df_fdr_filter):
-    """Prepare filtering criteria for FDR computation."""
-    if df_fdr_filter is None:
-        return None, None
-    
-    uniprot_filter_list = np.unique(df_fdr_filter['uniprot_id'])
-    aa_pos_filters = None
-    
-    # Extract amino acid positions to keep for each protein
-    if 'aa_pos' in df_fdr_filter.columns:
-        aa_pos_filters = {}
-        for uniprot_id in uniprot_filter_list:
-            aa_pos_keep = set(df_fdr_filter.loc[df_fdr_filter.uniprot_id == uniprot_id, 'aa_pos'].values)
-            aa_pos_filters[uniprot_id] = aa_pos_keep
-    
-    return uniprot_filter_list, aa_pos_filters
-
-
-def _load_and_filter_pvalues(results_dir, uniprot_filter_list, aa_pos_filters):
-    """Load p-values from HDF5 file and apply filters."""
-    to_concat = []
-    n_sims = None
-    
-    with h5py.File(os.path.join(results_dir, 'p_values.h5'), 'a') as fid:
-        uniprot_ids = [k for k in fid.keys() if '_' not in k]
-        if uniprot_filter_list is not None:
-            uniprot_ids = list(set(uniprot_ids) & set(uniprot_filter_list))
-
-        logger.info('Reading p-values')
-        for uniprot_id in uniprot_ids:
-            df = read_p_values(fid, uniprot_id)
-            
-            # Apply amino acid position filter if specified
-            if aa_pos_filters is not None and uniprot_id in aa_pos_filters:
-                aa_pos_keep = aa_pos_filters[uniprot_id]
-                # Create boolean mask: positions are 1-indexed, dataframe indices are 0-indexed
-                mask = np.array([x+1 in aa_pos_keep for x in range(len(df))])
-                df = df[mask]
-            
-            to_concat.append(df)
-        
-    # Ensure we have data to process
-    if not to_concat:
-        raise ValueError("No proteins found for FDR computation. Check filters and input data.")
-    
-    logger.info('Concatenating and sorting p-values')
-    df_pvals = pd.concat(to_concat)
-    df_pvals = df_pvals.sort_values(by='p_value').reset_index(drop=True)
-    
-    # Get n_sims from first protein (all should have same value)
-    n_sims = fid[f'{uniprot_ids[0]}_null_pval'].shape[1]
-    
-    return df_pvals, uniprot_ids, n_sims
-
-
-def _compute_false_discoveries(results_dir, uniprot_ids, aa_pos_filters, df_pvals, n_sims, large_p_threshold=0.05):
-    """Compute false discovery statistics from null distributions."""
-    logger.info('Computing average false discoveries')
-    mask = df_pvals.p_value <= large_p_threshold
-    false_discoveries_avg = np.zeros(df_pvals.shape[0])
-    
-    with h5py.File(os.path.join(results_dir, 'p_values.h5'), 'a') as fid:
-        null_pvals = []
-        for i, uniprot_id in enumerate(uniprot_ids):
-            null_pvals_one_uniprot = fid[f'{uniprot_id}_null_pval'][:]
-            
-            # Apply same amino acid position filter to null p-values
-            if aa_pos_filters is not None and uniprot_id in aa_pos_filters:
-                aa_pos_keep = aa_pos_filters[uniprot_id]
-                # Create boolean mask for null p-values (same logic as in _load_and_filter_pvalues)
-                mask_positions = np.array([x+1 in aa_pos_keep for x in range(null_pvals_one_uniprot.shape[0])])
-                null_pvals_one_uniprot = null_pvals_one_uniprot[mask_positions, :]
-            
-            null_pvals_one_uniprot = null_pvals_one_uniprot.flatten()
-            null_pvals.extend(null_pvals_one_uniprot[null_pvals_one_uniprot < large_p_threshold])
-            
-            if (i % 100 == 99) or (i == (len(uniprot_ids) - 1)):
-                if len(uniprot_ids) > 100:
-                    logger.debug(f'Computing false discoveries from protein {i} out of {len(uniprot_ids)}')
-                null_pvals = np.sort(np.array(null_pvals))
-                false_disc = np.empty(len(df_pvals.p_value))
-                if np.any(mask):
-                    false_disc[mask] = np.searchsorted(null_pvals, df_pvals.p_value[mask], side='right') / n_sims
-                if np.any(~mask):
-                    false_disc[~mask] = df_pvals.shape[0]
-                false_discoveries_avg += false_disc.tolist()
-                null_pvals = []
-    
-    return false_discoveries_avg
-
-
-def _apply_fdr_correction(df_pvals, false_discoveries_avg):
-    """Apply FDR correction and format results."""
-    logger.info('Computing FDR')
-    df_pvals['false_discoveries_avg'] = false_discoveries_avg
-    df_pvals['fdr'] = [x / (i+1) for i, x in enumerate(false_discoveries_avg)]
-    df_pvals['fdr'] = df_pvals['fdr'][::-1].cummin()[::-1]
-    
-    return df_pvals[['uniprot_id', 'aa_pos', 'p_value', 'fdr', 'nbhd_case', 'nbhd_control', 'ratio']]
-
-
-def compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir, annot_file=None, large_p_threshold=0.05):
-    """
-    Compute False Discovery Rate correction for scan test results.
-    
-    Main orchestration function that coordinates the FDR computation workflow.
-    """
-    logger.info('Computing FDR')
-    
-    # Prepare filtering criteria
-    uniprot_filter_list, aa_pos_filters = _prepare_fdr_filters(df_fdr_filter)
-    
-    # Load and filter p-values
-    df_pvals, uniprot_ids, n_sims = _load_and_filter_pvalues(
-        results_dir, uniprot_filter_list, aa_pos_filters
-    )
-    
-    # Compute false discoveries from null distributions
-    false_discoveries_avg = _compute_false_discoveries(
-        results_dir, uniprot_ids, aa_pos_filters, df_pvals, n_sims, large_p_threshold
-    )
-    
-    # Apply FDR correction
-    df_results = _apply_fdr_correction(df_pvals, false_discoveries_avg)
-    
-    # Summarize and return results
-    summarize_results(df_results, fdr_cutoff, reference_dir, annot_file)
-    
-    return df_results
-
 def _preprocess_scan_data(df_rvas, ignore_ac):
     """Preprocess scan data based on ignore_ac flag."""
     if not ignore_ac:
@@ -414,8 +285,20 @@ def _process_proteins_batch(df_rvas, uniprot_id_list, reference_dir, radius, pae
                 df, pdb_file_pos_guide, pdb_dir, pae_dir, 
                 results_dir, uniprot_id, radius, pae_cutoff, n_sims
             )
+        except FileNotFoundError as e:
+            logger.error(f'{uniprot_id}: Required file not found - {e}')
+            continue
+        except KeyError as e:
+            logger.error(f'{uniprot_id}: Missing required column or key - {e}')
+            continue
+        except ValueError as e:
+            logger.error(f'{uniprot_id}: Invalid data or parameter - {e}')
+            continue
+        except MemoryError as e:
+            logger.error(f'{uniprot_id}: Insufficient memory for processing - {e}')
+            continue
         except Exception as e:
-            logger.error(f'Error processing {uniprot_id}: {e}')
+            logger.error(f'{uniprot_id}: Unexpected error - {e}')
             continue
 
 
@@ -439,9 +322,6 @@ def scan_test(
     Main orchestration function for the structure-informed rare variant association study.
     Processes variants across proteins and computes statistical associations with 3D neighborhoods.
     """
-    logger.info("Starting scan test analysis")
-    logger.info(f"Input dataset contains {len(df_rvas)} variants across {df_rvas['uniprot_id'].nunique()} proteins")
-
     annot_file = f'{reference_dir}/annotations/g2p_binding_site_active_site.tsv'
     
     # Handle FDR-only mode
@@ -449,6 +329,9 @@ def scan_test(
         df_results = compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir, annot_file=annot_file)
         df_results.to_csv(fdr_file, sep='\t', index=False)
         return
+
+    logger.info("Starting scan test analysis")
+    logger.info(f"Input dataset contains {len(df_rvas)} variants across {df_rvas['uniprot_id'].nunique()} proteins")
 
     # Preprocess data
     df_processed = _preprocess_scan_data(df_rvas, ignore_ac)
