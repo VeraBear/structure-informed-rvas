@@ -202,12 +202,43 @@ def read_p_values(fid, uniprot_id):
     Reads the p values for one uniprot_id from an HDF5 results file,
     with the exception of the null values.
     """
-    pvalue_ratio = fid[uniprot_id][:]
+    pvalue_data = fid[uniprot_id][:]
     case_control = fid[f'{uniprot_id}_nbhd'][:]
+    
+    # Calculate ratio on-the-fly
+    nbhd_case = case_control[:, 0]
+    nbhd_control = case_control[:, 1]
+    n_case_total = nbhd_case.sum()
+    n_control_total = nbhd_control.sum()
+    ratio = (nbhd_case + 2) / (nbhd_control + 2 * n_control_total / n_case_total)
+    
     df = pd.DataFrame({'uniprot_id': uniprot_id,
-                       'aa_pos': np.arange(1, pvalue_ratio.shape[0]+1),
-                       'p_value': pvalue_ratio[:, 0],
-                       'ratio': pvalue_ratio[:, 1],
-                       'nbhd_case': case_control[:, 0],
-                       'nbhd_control': case_control[:, 1]})
+                       'aa_pos': np.arange(1, pvalue_data.shape[0]+1),
+                       'p_value': pvalue_data[:, 0],
+                       'ratio': ratio,
+                       'nbhd_case': nbhd_case,
+                       'nbhd_control': nbhd_control})
+    return df
+
+def read_original_mutation_data(fid, uniprot_id):
+    """
+    Reads the original per-residue mutation counts for one uniprot_id from an HDF5 results file.
+    """
+    pvalue_data = fid[uniprot_id][:]
+    original_data = fid[f'{uniprot_id}_original'][:]
+    case_control = fid[f'{uniprot_id}_nbhd'][:]
+    
+    # Calculate ratio on-the-fly using neighborhood data
+    nbhd_case = case_control[:, 0]
+    nbhd_control = case_control[:, 1]
+    n_case_total = nbhd_case.sum()
+    n_control_total = nbhd_control.sum()
+    ratio = (nbhd_case + 2) / (nbhd_control + 2 * n_control_total / n_case_total)
+    
+    df = pd.DataFrame({'uniprot_id': uniprot_id,
+                       'aa_pos': np.arange(1, pvalue_data.shape[0]+1),
+                       'p_value': pvalue_data[:, 0],
+                       'ratio': ratio,
+                       'ac_case': original_data[:, 0],
+                       'ac_control': original_data[:, 1]})
     return df

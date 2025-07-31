@@ -159,7 +159,7 @@ if __name__ == '__main__':
         help='Run visualization tools on a specific UniProt ID'
     )
     parser.add_argument(
-        '--uniprot_id',
+        '--uniprot-id',
         type=str,
         default=None,
         help='UniProt ID for visualization'

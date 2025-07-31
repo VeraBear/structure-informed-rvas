@@ -139,16 +139,19 @@ def compute_all_pvals(
     df_pvals = pd.DataFrame(columns = pval_columns, data = pval_matrix)
     df_pvals['nbhd_case'] = n_case_nbhd_mat[:,0]
     df_pvals['nbhd_control'] = n_control_nbhd_mat[:,0]
-    df_pvals['ratio'] = (df_pvals['nbhd_case'] + 2) / (df_pvals['nbhd_control'] + 2 * n_control / n_case)
-    df_pvals = df_pvals[['nbhd_case', 'nbhd_control'] + pval_columns + ['ratio']]
+    # Add original per-residue mutation counts
+    df_pvals['original_case'] = case_ac_matrix[:,0]
+    df_pvals['original_control'] = control_ac_matrix[:,0]
+    df_pvals = df_pvals[['nbhd_case', 'nbhd_control', 'original_case', 'original_control'] + pval_columns]
     return df_pvals, adjacency_matrix
 
 def write_df_pvals(results_dir, uniprot_id, df_pvals):
     with h5py.File(os.path.join(results_dir, 'p_values.h5'), 'a') as fid:
         null_pval_cols = [c for c in df_pvals.columns if c.startswith('null_pval')]
-        write_dataset(fid, f'{uniprot_id}', df_pvals[['p_value', 'ratio']])
+        write_dataset(fid, f'{uniprot_id}', df_pvals[['p_value']])
         write_dataset(fid, f'{uniprot_id}_null_pval', df_pvals[null_pval_cols])
         write_dataset(fid, f'{uniprot_id}_nbhd', df_pvals[['nbhd_case', 'nbhd_control']])
+        write_dataset(fid, f'{uniprot_id}_original', df_pvals[['original_case', 'original_control']])
 
 def scan_test_one_protein(df, pdb_file_pos_guide, pdb_dir, pae_dir, results_dir, uniprot_id, radius, pae_cutoff, n_sims):
     results_prefix = os.path.join(results_dir, uniprot_id)
