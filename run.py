@@ -80,7 +80,7 @@ if __name__ == '__main__':
         '--pae-cutoff',
         type=float,
         default=15.0,
-        help='maximum PAE value for clinvar or annotation tests',
+        help='maximum PAE value for clinvar or annotation tests; argument of 0 will result in no PAE filtering used',
     )
     parser.add_argument(
         '--n-sims',
