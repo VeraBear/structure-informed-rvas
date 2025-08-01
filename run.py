@@ -193,7 +193,7 @@ if __name__ == '__main__':
     if args.neighborhood_radius <= 0:
         raise ValueError(f"Neighborhood radius must be positive, got {args.neighborhood_radius}")
     
-    if args.pae_cutoff <= 0:
+    if args.pae_cutoff < 0:
         raise ValueError(f"PAE cutoff must be positive, got {args.pae_cutoff}")
     
     if args.n_sims <= 0:
