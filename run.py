@@ -80,7 +80,7 @@ if __name__ == '__main__':
         '--pae-cutoff',
         type=float,
         default=15.0,
-        help='maximum PAE value for clinvar or annotation tests',
+        help='maximum PAE value for clinvar or annotation tests; argument of 0 will result in no PAE filtering used',
     )
     parser.add_argument(
         '--n-sims',
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     if args.neighborhood_radius <= 0:
         raise ValueError(f"Neighborhood radius must be positive, got {args.neighborhood_radius}")
     
-    if args.pae_cutoff <= 0:
+    if args.pae_cutoff < 0:
         raise ValueError(f"PAE cutoff must be positive, got {args.pae_cutoff}")
     
     if args.n_sims <= 0:
