@@ -5,9 +5,9 @@ The Structure Informed RVAS test implements a systematic scan of predicted prote
 TBD - should be "pip install ..."
 might need to do something with requirements.txt ... 
 
-The reference data required to run the scan test can be found [here](link). This data should be moved to a corresponding `'reference'` directory that will be used as an argument when running the scan test. Included in this download are all PAE and PDB files, in subdirectories `'pae_files'` and `'pdb_files'`, respectively. Additionally, there is a mapping file `'all_missense_variants_gr38.h5'` that is used to map DNA coordinates of variants in gr38 to UniProt canonical proteins. Lastly, `'gene_to_uniprot.tsv'` can be used to map gene names to UniProt proteins, and `'pdb_pae_file_pos_guide.tsv'` describes all PAE and PDB files available in their respective folders, along with the protein and amino acid residues covered by each file. 
+The reference data required to run the scan test can be found [here](https://www.dropbox.com/scl/fi/6ejnootwgrth6k3lxmsv4/reference.tar.gz?rlkey=nykdltrnt8a1fdrb1v9qshcvp&st=i6dt0216&dl=0). This data should be moved to a corresponding `'reference'` directory that will be used as an argument when running the scan test. Included in this download are all PAE and PDB files, in subdirectories `'pae_files'` and `'pdb_files'`, respectively. Additionally, there is a mapping file `'all_missense_variants_gr38.h5'` that is used to map DNA coordinates of variants in gr38 to UniProt canonical proteins. Lastly, `'gene_to_uniprot.tsv'` can be used to map gene names to UniProt proteins, and `'pdb_pae_file_pos_guide.tsv'` describes all PAE and PDB files available in their respective folders, along with the protein and amino acid residues covered by each file. 
 
-The variant level data required to run the example in this tutorial can be found [here](link). The final path for this data will be used as an argument when running the scan test tutorial commands. 
+The variant level data required to run the example in this tutorial can be found [here](https://www.dropbox.com/scl/fi/7onm5wfosd0g5z4k319n8/input.tar.gz?rlkey=rhbsoybl8y6r5uu37stcudat7&st=4g3g18cs&dl=0). The final path for this data will be used as an argument when running the scan test tutorial commands. 
 
 ## General Usage 
 
