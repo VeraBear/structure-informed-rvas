@@ -7,7 +7,7 @@ from read_data import map_to_protein
 from pymol_code import run_all
 from pymol_code import make_movie_from_pse
 from logger_config import get_logger
-from utils import get_nbhd_residues
+from utils import get_nbhd_info
 
 logger = get_logger(__name__)
 
@@ -193,7 +193,7 @@ if __name__ == '__main__':
         '--get-nbhd',
         action='store_true',
         default=False,
-        help='Get list of residues in neighborhood centered at --aa-pos in protein --uniprot-id'
+        help='Get list of residues and variants in neighborhood centered at --aa-pos in protein --uniprot-id'
     )
     
     args = parser.parse_args()
@@ -282,6 +282,7 @@ if __name__ == '__main__':
     else:
         df_fdr_filter = None
 
+    df_rvas.to_csv('df_rvas_test.tsv', sep='\t', index=False)
     if args.scan_test: 
         logger.info("Starting scan test analysis")
         scan_test(
@@ -324,7 +325,12 @@ if __name__ == '__main__':
     elif args.get_nbhd:
         if not (args.uniprot_id and args.reference_dir and args.aa_pos):
             raise ValueError("For neighborhood residue lists, you must provide --uniprot_id, --reference_dir and --aa_pos")
-        nbhd = get_nbhd_residues(args.uniprot_id, args.aa_pos, args.reference_dir, args.neighborhood_radius, args.pae_cutoff)
+        nbhd, cases, cntrls = get_nbhd_info(df_rvas, args.uniprot_id, args.aa_pos, args.reference_dir, args.neighborhood_radius, args.pae_cutoff)
+        print('Residues in neighborhood:')
         print(nbhd)
+        print('Case Variants in neighborhood:')
+        print(cases)
+        print('Control Variants in neighborhood:')
+        print(cntrls)
     else:
         raise Exception('no analysis specified')

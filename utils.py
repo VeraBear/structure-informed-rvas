@@ -255,16 +255,30 @@ def read_original_mutation_data(fid, uniprot_id):
                        'ac_control': original_data[:, 1]})
     return df
 
-def get_nbhd_residues(uniprot_id, aa_pos, reference_dir, radius, pae_cutoff):
+def get_nbhd_info(df_rvas, uniprot_id, aa_pos, reference_dir, radius, pae_cutoff):
     """
-    For a given UniProt ID (str) and neighborhood center (int), returns a list of residue positions in the neighborhood (list of integers)
+    For a given UniProt ID (str) and neighborhood center (int), returns the following: 
+    1. a list of residue positions in the neighborhood (list of integers)
+    2. a list of case variant residue positions in the neighborhood (list of integers)
+    3. a list of control variant residue positions in the neighborhood (list of integers)
     """
     pdb_pae_file_pos_guide = f'{reference_dir}/pdb_pae_file_pos_guide.tsv'
     pdb_dir = f'{reference_dir}/pdb_files/'
     pae_dir = f'{reference_dir}/pae_files/'
-    
+
+    # get all neighborhood residues
     adj_mat = get_adjacency_matrix(pdb_pae_file_pos_guide, pdb_dir, pae_dir, uniprot_id, radius, pae_cutoff)
     nbhd = np.where(adj_mat[int(aa_pos)-1,:]==1)[0]+1
+
+    # get all variants on neighborhood residues
+    df_rvas_nbhd = df_rvas[df_rvas.aa_pos.isin(nbhd)]
+    # all case variants on neighborhood residues
+    df_rvas_case = df_rvas_nbhd[df_rvas_nbhd.ac_case>0]
+    # all control variants on neighborhood residues
+    df_rvas_cntrl = df_rvas_nbhd[df_rvas_nbhd.ac_control>0]
+
+    cases = df_rvas_case[['Variant ID', 'aa_pos','ac_case']].reset_index(drop=True)
+    cntrls = df_rvas_cntrl[['Variant ID', 'aa_pos', 'ac_control']].reset_index(drop=True)
 
     # alternative option - function takes in list of aa_pos (aa_list) and calcs nbhd for each of them
     # could also take in no list of pos and just return neighborhoods of whole protein
@@ -278,4 +292,4 @@ def get_nbhd_residues(uniprot_id, aa_pos, reference_dir, radius, pae_cutoff):
     #     'aa_pos': aa_list,
     #     'residues': residues
     
-    return nbhd
+    return nbhd, cases, cntrls
