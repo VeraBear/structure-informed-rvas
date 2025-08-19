@@ -270,8 +270,10 @@ def get_nbhd_info(df_rvas, uniprot_id, aa_pos, reference_dir, radius, pae_cutoff
     adj_mat = get_adjacency_matrix(pdb_pae_file_pos_guide, pdb_dir, pae_dir, uniprot_id, radius, pae_cutoff)
     nbhd = np.where(adj_mat[int(aa_pos)-1,:]==1)[0]+1
 
+    # restrict to our uniprot id
+    df_rvas_u = df_rvas[df_rvas.uniprot_id==uniprot_id]
     # get all variants on neighborhood residues
-    df_rvas_nbhd = df_rvas[df_rvas.aa_pos.isin(nbhd)]
+    df_rvas_nbhd = df_rvas_u[df_rvas_u.aa_pos.isin(nbhd)]
     # all case variants on neighborhood residues
     df_rvas_case = df_rvas_nbhd[df_rvas_nbhd.ac_case>0]
     # all control variants on neighborhood residues
