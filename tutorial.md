@@ -11,13 +11,7 @@ The variant level data required to run the example in this tutorial can be found
 
 ## General Usage 
 
-Version 1: using variant data that has not been mapped to UniProt
-
 ```python run.py --rvas-data-to-map [FOLDER/PATH/TO/DATA] --reference-dir [FOLDER/PATH/TO/...?????] --results-dir [EXAMPLE/RESULTS/FOLDER] --scan-test```
-
-Version 2: using variant data that has been mapped to UniProt
-
-```python run.py --rvas-data-mapped [FOLDER/PATH/TO/DATA] --reference-dir [FOLDER/PATH/TO/...?????] --results-dir [EXAMPLE/RESULTS/FOLDER] --scan-test```
 
 For variant data formatting, see `'formatting_requirements.txt'`. 
 
@@ -32,7 +26,6 @@ The above commands use the following default settings:
 - ignore-ac = False
 
 The above commands will result in the creation of two files: 
-
 `'p_values.h5'`: all information relative to neighborhoods that will be required to run the FDR computation
 `'all_proteins.fdr.tsv'`: all neighborhood results, including the UniProt ID, central amino acid residue position, associated p-value and FDR score, number of case and control variants within the neighborhood, and the case/control ratio within the neighborhood
 
@@ -52,7 +45,7 @@ Folder path to Gene/Protein Guide: `'sir-reference-data/gene_to_uniprot_id.tsv'`
 The results directory will be created during the process if it does not already exist. 
 
 ### Running the Scan Test - Basic Version
-EPI25 data is not yet mapped to proteins so we will use the `--rvas-data-to-map` flag with the path to the EPI25 data. 
+We will use the `--rvas-data-to-map` flag with the path to the EPI25 data. 
 `variant-id-col`, `ac-control-col`, and `ac-case-col` all already match the assumed formatting (list formatting here) so we can leave out these flags.
 We would like to run a scan test, so we will include the --scan-test flag.
 

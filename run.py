@@ -20,7 +20,6 @@ if __name__ == '__main__':
         default=None,
         help='''
             .tsv.gz file with columns chr, pos, ref, alt, ac_case, ac_control.
-            include exactly one of --rvas-data-to-map or --rvas-data-mapped
         ''',
     )
     parser.add_argument(
@@ -28,15 +27,6 @@ if __name__ == '__main__':
         type=str,
         default=None,
         help='name of the column that has variant ID in chr:pos:ref:alt or chr-pos-ref-alt format.'
-    )
-    parser.add_argument(
-        '--rvas-data-mapped',
-        type=str,
-        default=None,
-        help='''
-            data frame that already includes uniprot canonical coordinates
-            include exactly one of --rvas-data-to-map or --rvas-data-mapped.
-        '''
     )
     parser.add_argument(
         '--ac-case-col',
@@ -236,20 +226,12 @@ if __name__ == '__main__':
             args.which_proteins,
             args.genome_build
         )
-    elif args.rvas_data_mapped is not None:
-        df_rvas = pd.read_csv(args.rvas_data_mapped, sep='\t')
-        df_rvas = df_rvas.rename(columns = {
-            args.ac_case_col: 'ac_case',
-            args.ac_control_col: 'ac_control',
-            args.variant_id_col: 'Variant ID',
-            'Uniprot_ID': 'uniprot_id',
-        })
     else:
         df_rvas = None
     
     # Only require data input if not doing FDR-only analysis or visualization
     if df_rvas is None and not args.fdr_only and not args.visualization:
-        raise ValueError("Must provide either --rvas-data-to-map or --rvas-data-mapped")
+        raise ValueError("Must provide --rvas-data-to-map")
     
     if args.pdb_filename is not None and df_rvas is not None:
         df_rvas['pdb_filename'] = args.pdb_filename
