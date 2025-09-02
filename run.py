@@ -7,6 +7,7 @@ from read_data import map_to_protein
 from pymol_code import run_all
 from pymol_code import make_movie_from_pse
 from logger_config import get_logger
+from utils import get_nbhd_info
 
 logger = get_logger(__name__)
 
@@ -19,7 +20,6 @@ if __name__ == '__main__':
         default=None,
         help='''
             .tsv.gz file with columns chr, pos, ref, alt, ac_case, ac_control.
-            include exactly one of --rvas-data-to-map or --rvas-data-mapped
         ''',
     )
     parser.add_argument(
@@ -27,15 +27,6 @@ if __name__ == '__main__':
         type=str,
         default=None,
         help='name of the column that has variant ID in chr:pos:ref:alt or chr-pos-ref-alt format.'
-    )
-    parser.add_argument(
-        '--rvas-data-mapped',
-        type=str,
-        default=None,
-        help='''
-            data frame that already includes uniprot canonical coordinates
-            include exactly one of --rvas-data-to-map or --rvas-data-mapped.
-        '''
     )
     parser.add_argument(
         '--ac-case-col',
@@ -46,11 +37,6 @@ if __name__ == '__main__':
         '--ac-control-col',
         type=str,
         help='column with allele count in controls',
-    )
-    parser.add_argument(
-        '--pdb-filename',
-        type=str,
-        help='if the analysis only uses one pdb file, you can put it here instead of having a column in the input'
     )
     parser.add_argument(
         '--scan-test',
@@ -162,7 +148,7 @@ if __name__ == '__main__':
         '--uniprot-id',
         type=str,
         default=None,
-        help='UniProt ID for visualization'
+        help='UniProt ID for visualization or neighborhood residue list'
     )
     parser.add_argument(
         '--make_movie',
@@ -176,12 +162,23 @@ if __name__ == '__main__':
         default=None,
         help='Pymol session to make a movie from'
     )
-
     parser.add_argument(
         '--fdr-file',
         type=str,
         default='all_proteins.fdr.tsv',
         help='file in the results directory to write the fdrs to'
+    )
+    parser.add_argument(
+        '--aa-pos',
+        type=str,
+        default=None,
+        help='Amino acid residue position in --uniprot-id for center of desired neighborhood'
+    )
+    parser.add_argument(
+        '--get-nbhd',
+        action='store_true',
+        default=False,
+        help='Get list of residues and variants in neighborhood centered at --aa-pos in protein --uniprot-id'
     )
     
     args = parser.parse_args()
@@ -224,23 +221,12 @@ if __name__ == '__main__':
             args.which_proteins,
             args.genome_build
         )
-    elif args.rvas_data_mapped is not None:
-        df_rvas = pd.read_csv(args.rvas_data_mapped, sep='\t')
-        df_rvas = df_rvas.rename(columns = {
-            args.ac_case_col: 'ac_case',
-            args.ac_control_col: 'ac_control',
-            args.variant_id_col: 'Variant ID',
-            'Uniprot_ID': 'uniprot_id',
-        })
     else:
         df_rvas = None
     
     # Only require data input if not doing FDR-only analysis or visualization
     if df_rvas is None and not args.fdr_only and not args.visualization:
-        raise ValueError("Must provide either --rvas-data-to-map or --rvas-data-mapped")
-    
-    if args.pdb_filename is not None and df_rvas is not None:
-        df_rvas['pdb_filename'] = args.pdb_filename
+        raise ValueError("Must provide --rvas-data-to-map")
 
     if not args.which_proteins=='all':
         if os.path.exists(args.which_proteins):
@@ -309,5 +295,15 @@ if __name__ == '__main__':
             raise ValueError("For making a movie, you must provide --pse and --results_dir")
         make_movie_from_pse(args.results_dir, args.pse)
 
+    elif args.get_nbhd:
+        if not (args.uniprot_id and args.reference_dir and args.aa_pos):
+            raise ValueError("For neighborhood residue lists, you must provide --uniprot_id, --reference_dir and --aa_pos")
+        nbhd, cases, cntrls = get_nbhd_info(df_rvas, args.uniprot_id, args.aa_pos, args.reference_dir, args.neighborhood_radius, args.pae_cutoff)
+        print('Residues in neighborhood:')
+        print(nbhd)
+        print('Case Variants in neighborhood:')
+        print(cases)
+        print('Control Variants in neighborhood:')
+        print(cntrls)
     else:
         raise Exception('no analysis specified')

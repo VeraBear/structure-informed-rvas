@@ -92,9 +92,14 @@ def get_paes(pae_file, *args):
     # i: start from aminoacid i (inclusive)
     # j: end with aminoacid j (inclusive)
     # if only one argument i is provided, it computes starting from i till the end of the chain
-    
-    f = open(pae_file)
-    data = json.load(f)
+
+    if pae_file.endswith('.gz'):
+        with gzip.open(pae_file, 'rt') as f: 
+            data = json.load(f)
+    else:
+        with open(pae_file, 'r') as f:
+            data = json.load(f)
+            
     pae_matrix = np.array(data[0]['predicted_aligned_error'])
     #(pae_matrix < 15) * 1
    
@@ -249,3 +254,44 @@ def read_original_mutation_data(fid, uniprot_id):
                        'ac_case': original_data[:, 0],
                        'ac_control': original_data[:, 1]})
     return df
+
+def get_nbhd_info(df_rvas, uniprot_id, aa_pos, reference_dir, radius, pae_cutoff):
+    """
+    For a given UniProt ID (str) and neighborhood center (int), returns the following: 
+    1. a list of residue positions in the neighborhood (list of integers)
+    2. a list of case variant residue positions in the neighborhood (list of integers)
+    3. a list of control variant residue positions in the neighborhood (list of integers)
+    """
+    pdb_pae_file_pos_guide = f'{reference_dir}/pdb_pae_file_pos_guide.tsv'
+    pdb_dir = f'{reference_dir}/pdb_files/'
+    pae_dir = f'{reference_dir}/pae_files/'
+
+    # get all neighborhood residues
+    adj_mat = get_adjacency_matrix(pdb_pae_file_pos_guide, pdb_dir, pae_dir, uniprot_id, radius, pae_cutoff)
+    nbhd = np.where(adj_mat[int(aa_pos)-1,:]==1)[0]+1
+
+    # restrict to our uniprot id
+    df_rvas_u = df_rvas[df_rvas.uniprot_id==uniprot_id]
+    # get all variants on neighborhood residues
+    df_rvas_nbhd = df_rvas_u[df_rvas_u.aa_pos.isin(nbhd)]
+    # all case variants on neighborhood residues
+    df_rvas_case = df_rvas_nbhd[df_rvas_nbhd.ac_case>0]
+    # all control variants on neighborhood residues
+    df_rvas_cntrl = df_rvas_nbhd[df_rvas_nbhd.ac_control>0]
+
+    cases = df_rvas_case[['Variant ID', 'aa_pos','ac_case']].reset_index(drop=True)
+    cntrls = df_rvas_cntrl[['Variant ID', 'aa_pos', 'ac_control']].reset_index(drop=True)
+
+    # alternative option - function takes in list of aa_pos (aa_list) and calcs nbhd for each of them
+    # could also take in no list of pos and just return neighborhoods of whole protein
+    # aa_array = np.array(aa_list) - 1  # convert to 0-based indices
+    # # Get a boolean mask for rows in adjacency_matrix
+    # submatrix = adjacency_matrix[aa_array, :]  # shape: (len(aa_list), n_res)
+    # # Convert each row's "1"s to residue numbers
+    # residues = [list(np.where(row == 1)[0] + 1) for row in submatrix]
+    # return pd.DataFrame({
+    #     'uniprot_id': uniprot_id,
+    #     'aa_pos': aa_list,
+    #     'residues': residues
+    
+    return nbhd, cases, cntrls
