@@ -8,13 +8,15 @@ import os
 import re
 import json
 import warnings
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 def get_pairwise_distances(pdb_file, *args):
     # optional arguments i and j:
     # i: start from aminoacid i (inclusive)
     # j: end with aminoacid j (inclusive)
     # if only one argument i is provided, it computes starting from i till the end of the chain
-    
     parser = PDBParser(QUIET=True)
     if pdb_file.endswith('.gz'):
         with gzip.open(pdb_file, 'rt') as handle:
@@ -48,10 +50,14 @@ def get_distance_matrix_structure(pdb_file_pos_guide, pdb_dir, uniprot_id):
     pdb_files = info.loc[info.pdb_filename.str.contains(uniprot_id),'pdb_filename']
     ## Version 2: central on top of all
     if len(pdb_files)==0:
-        raise Exception(f"Protein {uniprot_id} not found.")
+        print(f"Protein {uniprot_id} not found.")
+        return None
     elif len(pdb_files)==1:
         # One pdb file in structure
         pathfile = os.path.join(pdb_dir, pdb_files.iloc[0])
+        if not os.path.exists(pathfile):
+            print(f"File {pathfile} does not exist.")
+            return None
         distance_matrix = get_pairwise_distances(pathfile)
     else:
         # Multiple pdb files in structure
@@ -89,9 +95,12 @@ def get_paes(pae_file, *args):
     # i: start from aminoacid i (inclusive)
     # j: end with aminoacid j (inclusive)
     # if only one argument i is provided, it computes starting from i till the end of the chain
-    
-    f = open(pae_file)
-    data = json.load(f)
+    if pae_file.endswith('.gz'):
+        with gzip.open(pae_file, 'rt') as f: 
+            data = json.load(f)
+    else:
+        with open(pae_file, 'r') as f:
+            data = json.load(f)
     pae_matrix = np.array(data[0]['predicted_aligned_error'])
     #(pae_matrix < 15) * 1
    
@@ -151,6 +160,10 @@ def get_pae_matrix_structure(pae_file_pos_guide, pae_dir, uniprot_id):
             pae_matrix[cum_nAA:cum_nAA+nAA_in_pae, cum_nAA:cum_nAA+nAA_in_pae] = get_paes(pathfile, i_in_pae, j_in_pae)
             cum_nAA = cum_nAA + nAA_in_pae
 
+    # force PAE matrix to be symmetrical
+    ## take the minimum where it is not symmetrical
+    if pae_matrix is not None:
+        pae_matrix = np.minimum(pae_matrix, pae_matrix.T)
     return pae_matrix
 
 # def get_adjacency_matrix_pdb(pdb_file, radius):
@@ -162,21 +175,24 @@ def get_pae_matrix_structure(pae_file_pos_guide, pae_dir, uniprot_id):
 #     return (distance_matrix < radius) * 1
 
 def get_adjacency_matrix(pdb_pae_file_pos_guide, pdb_dir, pae_dir, uniprot_id, radius, pae_cutoff):
+    logger.debug(f"Computing adjacency matrix for {uniprot_id} with radius={radius}, pae_cutoff={pae_cutoff}")
     distance_matrix = get_distance_matrix_structure(pdb_pae_file_pos_guide, pdb_dir, uniprot_id)
-    if pae_dir is None:
-        pae_matrix = None
+    if distance_matrix is None:
+        logger.warning(f"No distance matrix found for {uniprot_id}, returning None")
+        return None
+    dist_thresh = (distance_matrix < radius) * 1
+    if pae_cutoff == 0:
+        pae_thresh = np.ones_like(dist_thresh)
     else:
         pae_matrix = get_pae_matrix_structure(pdb_pae_file_pos_guide, pae_dir, uniprot_id)
-    
-    dist_thresh = (distance_matrix < radius) * 1
-    if pae_matrix == None:
-        adj_mat = dist_thresh
-    else:
-        pae_thresh = (pae_matrix < pae_cutoff) * 1
-        adj_mat = dist_thresh & pae_thresh
+        if pae_matrix is None:
+            pae_thresh = np.ones_like(dist_thresh)
+            logger.warning(f"No PAE matrix found for {uniprot_id}, using distance-only adjacency")
+        else:
+            pae_thresh = (pae_matrix < pae_cutoff) * 1
+    adj_mat = dist_thresh & pae_thresh
+    logger.debug(f"Adjacency matrix computed: {np.sum(adj_mat)} edges from {adj_mat.shape[0]} positions")
     return adj_mat
-
-
 def valid_for_fisher(contingency_table):
     valid_columns = np.all(np.sum(contingency_table, axis=0) > 0)
     valid_rows = np.all(np.sum(contingency_table, axis=1) > 0)
@@ -187,7 +203,9 @@ def valid_for_fisher(contingency_table):
         return False
 
 def write_dataset(fid, name, data, clevel=5):
-    dset = fid.create_dataset(
+    if name in fid:
+        del fid[name]
+    fid.create_dataset(
         name,
         data = data,
         compression = hdf5plugin.Zstd(clevel=clevel)
@@ -199,12 +217,86 @@ def read_p_values(fid, uniprot_id):
     Reads the p values for one uniprot_id from an HDF5 results file,
     with the exception of the null values.
     """
-    pvalue_ratio = fid[uniprot_id][:]
+    pvalue_data = fid[uniprot_id][:]
     case_control = fid[f'{uniprot_id}_nbhd'][:]
+    
+    # Calculate ratio on-the-fly
+    nbhd_case = case_control[:, 0]
+    nbhd_control = case_control[:, 1]
+    n_case_total = nbhd_case.sum()
+    n_control_total = nbhd_control.sum()
+    ratio = (nbhd_case + 2) / (nbhd_control + 2 * n_control_total / n_case_total)
+    
     df = pd.DataFrame({'uniprot_id': uniprot_id,
-                       'aa_pos': np.arange(1, pvalue_ratio.shape[0]+1),
-                       'p_value': pvalue_ratio[:, 0],
-                       'ratio': pvalue_ratio[:, 1],
-                       'nbhd_case': case_control[:, 0],
-                       'nbhd_control': case_control[:, 1]})
+                       'aa_pos': np.arange(1, pvalue_data.shape[0]+1),
+                       'p_value': pvalue_data[:, 0],
+                       'ratio': ratio,
+                       'nbhd_case': nbhd_case,
+                       'nbhd_control': nbhd_control})
     return df
+
+def read_original_mutation_data(fid, uniprot_id):
+    """
+    Reads the original per-residue mutation counts for one uniprot_id from an HDF5 results file.
+    """
+    pvalue_data = fid[uniprot_id][:]
+    original_data = fid[f'{uniprot_id}_original'][:]
+    case_control = fid[f'{uniprot_id}_nbhd'][:]
+    
+    # Calculate ratio on-the-fly using neighborhood data
+    nbhd_case = case_control[:, 0]
+    nbhd_control = case_control[:, 1]
+    n_case_total = nbhd_case.sum()
+    n_control_total = nbhd_control.sum()
+    ratio = (nbhd_case + 2) / (nbhd_control + 2 * n_control_total / n_case_total)
+    
+    df = pd.DataFrame({'uniprot_id': uniprot_id,
+                       'aa_pos': np.arange(1, pvalue_data.shape[0]+1),
+                       'p_value': pvalue_data[:, 0],
+                       'ratio': ratio,
+                       'ac_case': original_data[:, 0],
+                       'ac_control': original_data[:, 1]})
+    return df
+
+def get_nbhd_info(df_rvas, uniprot_id, aa_pos, reference_dir, radius, pae_cutoff):
+    """
+    For a given UniProt ID (str) and neighborhood center (int), returns the following: 
+    1. a list of residue positions in the neighborhood (list of integers)
+    2. a dataframe case variant residue positions in the neighborhood
+        - variant genetic coordinates; amino acid position, reference, and alternate; and allele count
+    3. a dataframe control variant residue positions in the neighborhood
+        - variant genetic coordinates; amino acid position, reference, and alternate; and allele count
+    """
+    pdb_pae_file_pos_guide = f'{reference_dir}/pdb_pae_file_pos_guide.tsv'
+    pdb_dir = f'{reference_dir}/pdb_files/'
+    pae_dir = f'{reference_dir}/pae_files/'
+
+    # get all neighborhood residues
+    adj_mat = get_adjacency_matrix(pdb_pae_file_pos_guide, pdb_dir, pae_dir, uniprot_id, radius, pae_cutoff)
+    nbhd = np.where(adj_mat[int(aa_pos)-1,:]==1)[0]+1
+
+    # restrict to our uniprot id
+    df_rvas_u = df_rvas[df_rvas.uniprot_id==uniprot_id]
+    # get all variants on neighborhood residues
+    df_rvas_nbhd = df_rvas_u[df_rvas_u.aa_pos.isin(nbhd)]
+    # all case variants on neighborhood residues
+    df_rvas_case = df_rvas_nbhd[df_rvas_nbhd.ac_case>0]
+    # all control variants on neighborhood residues
+    df_rvas_cntrl = df_rvas_nbhd[df_rvas_nbhd.ac_control>0]
+
+    cases = df_rvas_case[['Variant ID', 'aa_pos','ac_case', 'aa_ref', 'aa_alt']].reset_index(drop=True)
+    cntrls = df_rvas_cntrl[['Variant ID', 'aa_pos', 'ac_control', 'aa_ref', 'aa_alt']].reset_index(drop=True)
+
+    # alternative option - function takes in list of aa_pos (aa_list) and calcs nbhd for each of them
+    # could also take in no list of pos and just return neighborhoods of whole protein
+    # aa_array = np.array(aa_list) - 1  # convert to 0-based indices
+    # # Get a boolean mask for rows in adjacency_matrix
+    # submatrix = adjacency_matrix[aa_array, :]  # shape: (len(aa_list), n_res)
+    # # Convert each row's "1"s to residue numbers
+    # residues = [list(np.where(row == 1)[0] + 1) for row in submatrix]
+    # return pd.DataFrame({
+    #     'uniprot_id': uniprot_id,
+    #     'aa_pos': aa_list,
+    #     'residues': residues
+    
+    return nbhd, cases, cntrls

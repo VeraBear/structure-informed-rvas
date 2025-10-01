@@ -4,7 +4,12 @@ import os
 from scan_test import scan_test
 from annotation_test import annotation_test
 from read_data import map_to_protein
-# from annotation_test import annotation_test
+from pymol_code import run_all
+from pymol_code import make_movie_from_pse
+from logger_config import get_logger
+from utils import get_nbhd_info
+
+logger = get_logger(__name__)
 
 
 if __name__ == '__main__':
@@ -15,7 +20,6 @@ if __name__ == '__main__':
         default=None,
         help='''
             .tsv.gz file with columns chr, pos, ref, alt, ac_case, ac_control.
-            include exactly one of --rvas-data-to-map or --rvas-data-mapped
         ''',
     )
     parser.add_argument(
@@ -23,15 +27,6 @@ if __name__ == '__main__':
         type=str,
         default=None,
         help='name of the column that has variant ID in chr:pos:ref:alt or chr-pos-ref-alt format.'
-    )
-    parser.add_argument(
-        '--rvas-data-mapped',
-        type=str,
-        default=None,
-        help='''
-            data frame that already includes uniprot canonical coordinates
-            include exactly one of --rvas-data-to-map or --rvas-data-mapped.
-        '''
     )
     parser.add_argument(
         '--ac-case-col',
@@ -42,11 +37,6 @@ if __name__ == '__main__':
         '--ac-control-col',
         type=str,
         help='column with allele count in controls',
-    )
-    parser.add_argument(
-        '--pdb-filename',
-        type=str,
-        help='if the analysis only uses one pdb file, you can put it here instead of having a column in the input'
     )
     parser.add_argument(
         '--scan-test',
@@ -76,7 +66,7 @@ if __name__ == '__main__':
         '--pae-cutoff',
         type=float,
         default=15.0,
-        help='maximum PAE value for clinvar or annotation tests',
+        help='maximum PAE value for clinvar or annotation tests; argument of 0 will result in no PAE filtering used',
     )
     parser.add_argument(
         '--n-sims',
@@ -115,7 +105,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--ac-filter',
         type=int,
-        default=10,
+        default=5,
         help='filter out AC greater than this.'
     )
     parser.add_argument(
@@ -149,13 +139,74 @@ if __name__ == '__main__':
         help='count every variant only once',
     )
     parser.add_argument(
+        '--visualization',
+        action='store_true',
+        default=False,
+        help='Run visualization tools on a specific UniProt ID'
+    )
+    parser.add_argument(
+        '--uniprot-id',
+        type=str,
+        default=None,
+        help='UniProt ID for visualization or neighborhood residue list'
+    )
+    parser.add_argument(
+        '--make_movie',
+        action='store_true',
+        default=False,
+        help='make movie from a Pymol session file',
+    )
+    parser.add_argument(
+        '--pse',
+        type=str,
+        default=None,
+        help='Pymol session to make a movie from'
+    )
+    parser.add_argument(
         '--fdr-file',
         type=str,
         default='all_proteins.fdr.tsv',
         help='file in the results directory to write the fdrs to'
     )
+    parser.add_argument(
+        '--aa-pos',
+        type=str,
+        default=None,
+        help='Amino acid residue position in --uniprot-id for center of desired neighborhood'
+    )
+    parser.add_argument(
+        '--get-nbhd',
+        action='store_true',
+        default=False,
+        help='Get list of residues and variants in neighborhood centered at --aa-pos in protein --uniprot-id'
+    )
     args = parser.parse_args()
-
+    # Input validation
+    if args.genome_build not in ['hg37', 'hg38']:
+        raise ValueError(f"Invalid genome build: {args.genome_build}. Must be 'hg37' or 'hg38'")
+    
+    if args.neighborhood_radius <= 0:
+        raise ValueError(f"Neighborhood radius must be positive, got {args.neighborhood_radius}")
+    
+    if args.pae_cutoff < 0:
+        raise ValueError(f"PAE cutoff must be positive, got {args.pae_cutoff}")
+    
+    if args.n_sims <= 0:
+        raise ValueError(f"Number of simulations must be positive, got {args.n_sims}")
+    
+    if args.ac_filter <= 0:
+        raise ValueError(f"AC filter must be positive, got {args.ac_filter}")
+    
+    if not (0 < args.fdr_cutoff < 1):
+        raise ValueError(f"FDR cutoff must be between 0 and 1, got {args.fdr_cutoff}")
+    
+    # Check required directories exist
+    if args.reference_dir and not os.path.exists(args.reference_dir):
+        raise FileNotFoundError(f"Reference directory not found: {args.reference_dir}")
+    
+    if args.results_dir and not os.path.exists(args.results_dir):
+        logger.info(f"Creating results directory: {args.results_dir}")
+        os.makedirs(args.results_dir, exist_ok=True)
     if args.rvas_data_to_map is not None:
         # map rvas results onto protein coordinates, linked to pdb files
         df_rvas = map_to_protein(
@@ -167,19 +218,11 @@ if __name__ == '__main__':
             args.which_proteins,
             args.genome_build
         )
-    elif args.rvas_data_mapped is not None:
-        df_rvas = pd.read_csv(args.rvas_data_mapped, sep='\t')
-        df_rvas = df_rvas.rename(columns = {
-            args.ac_case_col: 'ac_case',
-            args.ac_control_col: 'ac_control',
-            args.variant_id_col: 'Variant ID',
-            'Uniprot_ID': 'uniprot_id',
-        })
     else:
         df_rvas = None
-    
-    if args.pdb_filename is not None:
-        df_rvas['pdb_filename'] = args.pdb_filename
+    # Only require data input if not doing FDR-only analysis or visualization
+    if df_rvas is None and not args.fdr_only and not args.visualization:
+        raise ValueError("Must provide --rvas-data-to-map")
 
     if not args.which_proteins=='all':
         if os.path.exists(args.which_proteins):
@@ -192,16 +235,25 @@ if __name__ == '__main__':
         df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < args.ac_filter]
 
     if args.df_fdr_filter is not None:
-        df_fdr_filter = pd.read_csv(args.df_fdr_filter, sep='\t')
-        if 'aa_pos' in df_fdr_filter.columns:
-            df_fdr_filter = df_fdr_filter[['uniprot_id', 'aa_pos']]
-        else:
-            df_fdr_filter = df_fdr_filter[['uniprot_id']]
-        df_fdr_filter = df_fdr_filter.drop_duplicates()
+        filter_files = args.df_fdr_filter.split(',')
+        def read_filter_file(f):
+            df_fdr_filter = pd.read_csv(f, sep='\t')
+            if 'aa_pos' in df_fdr_filter.columns:
+                df_fdr_filter = df_fdr_filter[['uniprot_id', 'aa_pos']]
+            else:
+                df_fdr_filter = df_fdr_filter[['uniprot_id']]
+            df_fdr_filter = df_fdr_filter.drop_duplicates()
+            return df_fdr_filter
+        df_fdr_filter = read_filter_file(filter_files[0])
+        if len(filter_files) > 1:
+            for f in filter_files[1:]:
+                next_fdr_filter = read_filter_file(f)
+                df_fdr_filter = pd.merge(df_fdr_filter, next_fdr_filter)
     else:
         df_fdr_filter = None
 
     if args.scan_test: 
+        logger.info("Starting scan test analysis")
         scan_test(
             df_rvas,
             args.reference_dir,
@@ -216,22 +268,9 @@ if __name__ == '__main__':
             args.ignore_ac,
             args.fdr_file,
         )
-    
-    elif args.clinvar_test:
-        print('Performing ClinVar test.')
-        annotation_file = f'{args.reference_dir}/ClinVar_PLP_uniprot_canonical.tsv.gz'
-        filter_file = f'{args.reference_dir}/AlphaMissense_gt_0.9.tsv.gz'
-        annotation_test(
-            df_rvas,
-            annotation_file,
-            args.reference_dir,
-            args.neighborhood_radius,
-            args.pae_cutoff,
-            filter_file,
-        )
 
     elif args.annotation_file is not None:
-        print('Performing annotation test')
+        logger.info('Starting annotation test analysis')
         annotation_test(
             df_rvas,
             args.annotation_file,
@@ -241,6 +280,25 @@ if __name__ == '__main__':
             args.results_dir,
             args.filter_file,
         )
+    elif args.visualization:
+        if not (args.uniprot_id and args.reference_dir and args.results_dir):
+            raise ValueError("For visualization, you must provide --uniprot_id, --reference_dir and --results_dir")
+        run_all(args.uniprot_id, args.results_dir, args.reference_dir)
     
+    elif args.make_movie:
+        if not (args.pse and args.results_dir):
+            raise ValueError("For making a movie, you must provide --pse and --results_dir")
+        make_movie_from_pse(args.results_dir, args.pse)
+
+    elif args.get_nbhd:
+        if not (args.uniprot_id and args.reference_dir and args.aa_pos):
+            raise ValueError("For neighborhood residue lists, you must provide --uniprot_id, --reference_dir and --aa_pos")
+        nbhd, cases, cntrls = get_nbhd_info(df_rvas, args.uniprot_id, args.aa_pos, args.reference_dir, args.neighborhood_radius, args.pae_cutoff)
+        print('Residues in neighborhood:')
+        print(nbhd)
+        print('Case Variants in neighborhood:')
+        print(cases)
+        print('Control Variants in neighborhood:')
+        print(cntrls)
     else:
         raise Exception('no analysis specified')
