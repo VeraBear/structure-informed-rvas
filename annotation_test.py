@@ -158,9 +158,9 @@ def annotation_test(
         raise Exception('Error: pae_dir does not exist, but pae_cutoff is not 0.')
 
     try:
-        logger.debug(df_rvas)
+        logger.debug(f"df_rvas content: {df_rvas}")
         uniprot_id_list = df_rvas.uniprot_id.unique()
-        logger.info(f"Found {len(uniprot_id_list)} unique UniProt IDs.")
+        logger.info(f"Found {len(uniprot_id_list)} unique UniProt IDs")
     except AttributeError:
         logger.error("df_rvas is not defined or doesn't have a 'uniprot_id' attribute")
     except Exception as e:
@@ -197,7 +197,7 @@ def annotation_test(
     # print('annotation_id_list:', annotation_id_list)    
 
     ## check if pdb files exist for uniprot_ids
-    #print(f'Checking PDB files for all proteins...')
+    # logger.debug('Checking PDB files for all proteins...')
     #info = pd.read_csv(pdb_file_pos_guide, sep="\t")
     #uniprot_id_list = list(map(functools.partial(check_pdb_files_exist,
     #                                             pdb_dir=pdb_dir,

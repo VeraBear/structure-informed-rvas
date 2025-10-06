@@ -1,1 +1,62 @@
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Temporary files
+tmp_*
+temp_*
+test.*
+*.tmp
+*.temp
+
+# Data files (uncomment if you want to ignore data)
+# *.csv
+# *.tsv
+# *.h5
+# *.hdf5
+
+# Results and outputs
+results/
+output/
+logs/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Examples and documentation artifacts
+examples/
+docs/_build/
