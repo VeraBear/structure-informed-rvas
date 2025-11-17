@@ -271,7 +271,7 @@ def scan_test(
     # Handle FDR-only mode
     if fdr_only:
         df_results = compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir)
-        df_results.to_csv(fdr_file, sep='\t', index=False)
+        df_results.to_csv(f'{results_dir}/{fdr_file}', sep='\t', index=False)
         return
 
     logger.info("Starting scan test analysis")
@@ -292,5 +292,5 @@ def scan_test(
     # Compute FDR if requested
     if not no_fdr:
         df_results = compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir)
-        df_results.to_csv(fdr_file, sep='\t', index=False)
+        df_results.to_csv(f'{results_dir}/{fdr_file}', sep='\t', index=False)
     

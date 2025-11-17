@@ -2,7 +2,6 @@ import argparse
 import pandas as pd
 import os
 from scan_test import scan_test
-from annotation_test import annotation_test
 from read_data import map_to_protein
 from pymol_code import run_all
 from pymol_code import make_movie_from_pse
@@ -44,7 +43,7 @@ if __name__ == '__main__':
         help='name of the column that has allele count in controls',
     )
     parser.add_argument(
-        '--3dnt',
+        '--run-3dnt',
         action='store_true',
         default=False,
         help = 'perform the 3D neighborhood test',
@@ -255,10 +254,13 @@ if __name__ == '__main__':
             uniprot_id = [x.rstrip() for x in open(args.uniprot_id).readlines()]
         else:
             uniprot_id = args.uniprot_id.split(',')
+    else:
+        uniprot_id = None
 
     if df_rvas is not None:
         df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < args.ac_filter]
-        df_rvas = df_rvas[df_rvas.uniprot_id.isin(uniprot_id)]
+        if uniprot_id is not None:
+            df_rvas = df_rvas[df_rvas.uniprot_id.isin(uniprot_id)]
 
     # Load FDR filter if provided
 
@@ -289,7 +291,7 @@ if __name__ == '__main__':
         df_rvas.to_csv(args.save_df_rvas, sep='\t', index=False)
         did_nothing = False
 
-    if args.scan_test: 
+    if args.run_3dnt: 
         logger.info("Starting scan test analysis")
         scan_test(
             df_rvas,
