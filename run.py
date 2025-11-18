@@ -1,6 +1,7 @@
 import argparse
 import pandas as pd
 import os
+import h5py
 from scan_test import scan_test
 from read_data import map_to_protein
 from pymol_code import run_all
@@ -122,6 +123,21 @@ if __name__ == '__main__':
         type=str,
         default='all_proteins.fdr.tsv',
         help='file in the results directory to write the fdrs to'
+    )
+    parser.add_argument(
+        '--pval-file',
+        type=str,
+        default='p_values.h5',
+        help='p-value file name to save p-values to.'
+    )
+    parser.add_argument(
+        '--combine-pval-files',
+        type=str,
+        default=None,
+        help='''
+        comma-delimited list of p-value files to combine. the output file will be
+        the one given by --pval-file. this is particularly useful for parallelization.
+        '''
     )
     parser.add_argument(
         '--fdr-cutoff',
@@ -246,9 +262,6 @@ if __name__ == '__main__':
     else:
         df_rvas = None
 
-    if df_rvas is None and not args.fdr_only and not args.visualization:
-        raise ValueError("Must provide --rvas-data-to-map")
-
     if args.uniprot_id is not None:
         if os.path.exists(args.uniprot_id):
             uniprot_id = [x.rstrip() for x in open(args.uniprot_id).readlines()]
@@ -306,6 +319,7 @@ if __name__ == '__main__':
             df_fdr_filter,
             args.ignore_ac,
             args.fdr_file,
+            args.pval_file,
             args.remove_nbhd,
         )
         did_nothing = False
@@ -334,5 +348,21 @@ if __name__ == '__main__':
         print(cntrls)
         did_nothing = False
     
+    elif args.combine_pval_files is not None:
+        pval_files_to_combine = [f.strip() for f in args.combine_pval_files.split(',')]
+
+        with h5py.File(os.path.join(args.results_dir, args.pval_file), 'w') as fid_out:
+            for file in pval_files_to_combine:
+                with h5py.File(os.path.join(args.results_dir, file), 'r') as fid_in:
+                    for key in fid_in.keys():
+                        if key not in fid_out:
+                            fid_in.copy(key, fid_out)
+                        else:
+                            existing = fid_out[key][:]
+                            new_data = fid_in[key][:]
+                            combined = np.concatenate([existing, new_data], axis=0)
+                            del fid_out[key]
+                            fid_out.create_dataset(key, data=combined)
+
     if did_nothing:
         raise Exception('no analysis specified')
