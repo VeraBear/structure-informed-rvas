@@ -90,6 +90,9 @@ def map_to_protein(
         if '"' in rvas_data.alleles.iloc[0]:
             rvas_data['ref'] = rvas_data['alleles'].str.split('"').str[1]
             rvas_data['alt'] = rvas_data['alleles'].str.split('"').str[3]
+        elif '\'' in rvas_data.alleles.iloc[0]:
+            rvas_data['ref'] = rvas_data['alleles'].str.split('\'').str[1]
+            rvas_data['alt'] = rvas_data['alleles'].str.split('\'').str[3]
         else:
             rvas_data['ref'] = rvas_data['alleles'].str.split(',').str[0].str[1:]
             rvas_data['alt'] = rvas_data['alleles'].str.split(',').str[1].str[:-1]
