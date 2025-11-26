@@ -294,14 +294,15 @@ if __name__ == '__main__':
             for f in filter_files[1:]:
                 next_fdr_filter = read_filter_file(f)
                 df_fdr_filter = pd.merge(df_fdr_filter, next_fdr_filter)
+    else:
+        df_fdr_filter = None
     if uniprot_id is not None:
         df_fdr_filter_uniprot = pd.DataFrame({'uniprot_id': uniprot_id})
         if args.df_fdr_filter is not None:
             df_fdr_filter = pd.merge(df_fdr_filter, df_fdr_filter_uniprot)
         else:
             df_fdr_filter = df_fdr_filter_uniprot
-    else:
-        df_fdr_filter = None
+
 
     print('df_fdr_filter', df_fdr_filter)
 
