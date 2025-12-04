@@ -92,7 +92,7 @@ if __name__ == '__main__':
         '--ac-filter',
         type=int,
         default=5,
-        help='filter out variants with AC greater than this.'
+        help='filter to variants with AC less than this.'
     )
     parser.add_argument(
         '--df-fdr-filter',
