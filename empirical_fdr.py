@@ -1,7 +1,7 @@
 """
-Empirical False Discovery Rate (FDR) correction for multiple testing.
+Empirical False Discovery Rate (FDR) and Family-Wise Error Rate (FWER) correction for multiple testing.
 
-This module implements FDR correction using null distributions from permutation testing,
+This module implements FDR and FWER correction using null distributions from permutation testing,
 specifically designed for structure-informed rare variant association studies.
 """
 
@@ -80,11 +80,10 @@ def _load_all_pvalues(results_dir, uniprot_filter_list, aa_pos_filters, pval_fil
 
 def _compute_false_discoveries(df_pvals, null_pvals_dict, uniprot_ids, n_sims, large_p_threshold=0.05):
     """Compute false discovery statistics from null distributions."""
-    logger.info('Computing false discoveries')
+    logger.info('Computing false discoveries for FDR')
     mask = df_pvals.p_value <= large_p_threshold
     
-    # First loop: Aggregate ALL null p-values across all proteins
-    logger.debug('Aggregating null p-values from all proteins')
+    # Aggregate ALL null p-values across all proteins
     null_pvals = []
     for i, uniprot_id in enumerate(uniprot_ids):
         if len(uniprot_ids) > 100 and i % 100 == 0:
@@ -95,11 +94,9 @@ def _compute_false_discoveries(df_pvals, null_pvals_dict, uniprot_ids, n_sims, l
         null_pvals.extend(null_pvals_one_uniprot[null_pvals_one_uniprot < large_p_threshold])
     
     # Sort the complete null distribution once
-    logger.debug(f'Sorting {len(null_pvals)} null p-values')
     null_pvals = np.sort(np.array(null_pvals))
     
-    # Second loop: Compute FDRs using the complete null distribution
-    logger.debug('Computing false discovery rates')
+    # Compute FDRs using the complete null distribution
     false_discoveries = np.empty(len(df_pvals.p_value))
     
     if np.any(mask):
@@ -110,29 +107,87 @@ def _compute_false_discoveries(df_pvals, null_pvals_dict, uniprot_ids, n_sims, l
     return false_discoveries
 
 
-def _apply_fdr_correction(df_pvals, false_discoveries):
-    """Apply FDR correction and format results."""
-    logger.info('Computing FDR')
+def _compute_fwer(df_pvals, null_pvals_dict, uniprot_ids, n_sims, chunk_size=50):
+    """
+    Compute empirical FWER by processing proteins in chunks.
+    
+    Args:
+        df_pvals: DataFrame with observed p-values
+        null_pvals_dict: Dictionary mapping protein IDs to null p-value arrays
+        uniprot_ids: List of protein IDs
+        n_sims: Number of simulations
+        chunk_size: Number of proteins to process at once (default 50)
+        
+    Returns:
+        Array of FWER values
+    """
+    logger.info('Computing empirical FWER')
+    
+    # Initialize with ones (worst case p-value)
+    min_pvals_per_sim = np.ones(n_sims)
+    
+    # Process proteins in chunks
+    for chunk_start in range(0, len(uniprot_ids), chunk_size):
+        chunk_end = min(chunk_start + chunk_size, len(uniprot_ids))
+        chunk_proteins = uniprot_ids[chunk_start:chunk_end]
+        
+        # Stack null p-values for this chunk of proteins
+        null_pvals_chunk = np.vstack([null_pvals_dict[uid] for uid in chunk_proteins])
+        
+        # Find minimum p-value per simulation for this chunk
+        min_pvals_chunk = np.min(null_pvals_chunk, axis=0)
+        
+        # Update global minimums
+        min_pvals_per_sim = np.minimum(min_pvals_per_sim, min_pvals_chunk)
+    
+    # Compute FWER for each observed p-value
+    p_obs = df_pvals['p_value'].values.reshape(-1, 1)
+    min_pvals_per_sim = min_pvals_per_sim.reshape(1, -1)
+    fwer = np.mean(min_pvals_per_sim <= p_obs, axis=1)
+    
+    return fwer
+
+
+def _apply_corrections(df_pvals, false_discoveries, fwer):
+    """Apply FDR and FWER corrections and format results."""
+    logger.info('Applying FDR and FWER corrections')
+    
+    # Apply FDR correction
     df_pvals['false_discoveries_avg'] = false_discoveries
     df_pvals['fdr'] = [x / (i+1) for i, x in enumerate(false_discoveries)]
     df_pvals['fdr'] = df_pvals['fdr'][::-1].cummin()[::-1]
     
-    return df_pvals[['uniprot_id', 'aa_pos', 'p_value', 'fdr', 'nbhd_case', 'nbhd_control', 'ratio']]
+    # Add FWER
+    df_pvals['fwer'] = fwer
+    
+    return df_pvals[['uniprot_id', 'aa_pos', 'p_value', 'fdr', 'fwer', 'nbhd_case', 'nbhd_control', 'ratio']]
 
-def summarize_results(df_results, fdr_cutoff):
 
+def summarize_results(df_results, fdr_cutoff, fwer_cutoff=0.05):
+    """Summarize results with both FDR and FWER significance."""
     top_hits_all_genes = df_results.loc[df_results.groupby('uniprot_id')['fdr'].idxmin()]
-    top_hits_sig = top_hits_all_genes[top_hits_all_genes.fdr<fdr_cutoff]
-    top_hits_sig = top_hits_sig.sort_values(by='p_value')
+    top_hits_fdr_sig = top_hits_all_genes[top_hits_all_genes.fdr < fdr_cutoff]
+    top_hits_fdr_sig = top_hits_fdr_sig.sort_values(by='p_value')
+    
+    top_hits_fwer_sig = top_hits_all_genes[top_hits_all_genes.fwer < fwer_cutoff]
+    top_hits_fwer_sig = top_hits_fwer_sig.sort_values(by='p_value')
+    
     logger.info('')
-    logger.info(f'{len(top_hits_sig)} out of {len(top_hits_all_genes)} proteins have a neighborhood significant at {fdr_cutoff}.')
-    logger.info(f'Top 20 hits:\n{top_hits_sig[0:20].to_string()}')
+    logger.info(f'{len(top_hits_fdr_sig)} out of {len(top_hits_all_genes)} proteins have a neighborhood significant at FDR < {fdr_cutoff}')
+    logger.info(f'{len(top_hits_fwer_sig)} out of {len(top_hits_all_genes)} proteins have a neighborhood significant at FWER < {fwer_cutoff}')
+    
+    if len(top_hits_fdr_sig) > 0:
+        logger.info(f'Top 20 FDR-significant hits:\n{top_hits_fdr_sig[0:20].to_string()}')
+    
+    if len(top_hits_fwer_sig) > 0:
+        logger.info(f'Top FWER-significant hits:\n{top_hits_fwer_sig.to_string()}')
+
 
 def compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir, pval_file, large_p_threshold=0.05):
     """
-    Compute False Discovery Rate correction for scan test results.
+    Compute False Discovery Rate and Family-Wise Error Rate corrections for scan test results.
     
-    Main orchestration function that coordinates the FDR computation workflow using
+    Main orchestration function that coordinates the FDR and FWER computation workflow using
     empirical null distributions from permutation testing.
     
     Args:
@@ -140,12 +195,13 @@ def compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir, pval_file
         fdr_cutoff: FDR threshold for significance
         df_fdr_filter: Optional DataFrame to filter proteins and positions
         reference_dir: Directory with reference files for result annotation
+        pval_file: HDF5 filename containing p-values
         large_p_threshold: P-value threshold for computational efficiency (default 0.05)
         
     Returns:
-        DataFrame with FDR-corrected results
+        DataFrame with FDR and FWER corrected results
     """
-    logger.info('Computing FDR')
+    logger.info('Computing FDR and FWER')
     
     # Prepare filtering criteria
     uniprot_filter_list, aa_pos_filters = _prepare_fdr_filters(df_fdr_filter)
@@ -155,18 +211,21 @@ def compute_fdr(results_dir, fdr_cutoff, df_fdr_filter, reference_dir, pval_file
         results_dir, uniprot_filter_list, aa_pos_filters, pval_file
     )
     
-    # Compute false discoveries from null distributions
+    # Compute false discoveries from null distributions (for FDR)
     false_discoveries = _compute_false_discoveries(
         df_pvals, null_pvals_dict, uniprot_ids, n_sims, large_p_threshold
     )
     
-    # Apply FDR correction
-    df_results = _apply_fdr_correction(df_pvals, false_discoveries)
+    # Compute FWER from null distributions
+    fwer = _compute_fwer(df_pvals, null_pvals_dict, uniprot_ids, n_sims)
+    
+    # Apply both corrections
+    df_results = _apply_corrections(df_pvals, false_discoveries, fwer)
     
     # Add gene name
     df_gene = pd.read_csv(f'{reference_dir}/gene_to_uniprot_id.tsv', sep='\t')
     df_results = df_results.merge(df_gene, how='left', on='uniprot_id')
-
+    
     # Summarize and return results
     summarize_results(df_results, fdr_cutoff)
     

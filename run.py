@@ -13,6 +13,76 @@ from utils import get_nbhd_info
 
 logger = get_logger(__name__)
 
+def map_and_filter_rvas(
+        rvas_data_to_map,
+        variant_id_col,
+        ac_case_col,
+        ac_control_col,
+        reference_dir,
+        uniprot_id,
+        genome_build,
+        df_filter,
+        ac_filter,
+):
+    
+    if rvas_data_to_map is not None:
+        df_rvas = map_to_protein(
+            rvas_data_to_map,
+            variant_id_col,
+            ac_case_col,
+            ac_control_col,
+            reference_dir,
+            uniprot_id,
+            genome_build
+        )
+    else:
+        df_rvas = None
+
+
+    if df_rvas is not None:
+        df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < ac_filter]
+        if uniprot_id is not None:
+            df_rvas = df_rvas[df_rvas.uniprot_id.isin(uniprot_id)]
+
+    # Load FDR filter if provided
+
+    if df_filter is not None:
+        filter_files = df_filter.split(',')
+        def read_filter_file(f):
+            df_filter = pd.read_csv(f, sep='\t')
+            if 'aa_pos' in df_filter.columns:
+                df_filter = df_filter[['uniprot_id', 'aa_pos']]
+            else:
+                df_filter = df_filter[['uniprot_id']]
+            df_filter = df_filter.drop_duplicates()
+            return df_filter
+        df_filter = read_filter_file(filter_files[0])
+        if len(filter_files) > 1:
+            for f in filter_files[1:]:
+                next_fdr_filter = read_filter_file(f)
+                df_filter = pd.merge(df_filter, next_fdr_filter)
+        uniprots_from_fdr_filter = list(df_filter[['uniprot_id']].drop_duplicates().values.flatten())
+    else:
+        df_filter = None
+
+    if uniprot_id is not None:
+        if os.path.exists(uniprot_id):
+            uniprot_list = [x.rstrip() for x in open(uniprot_id).readlines()]
+        else:
+            uniprot_list = uniprot_id.split(',')
+        if df_filter is not None:
+            uniprot_list = list(set(uniprots_from_fdr_filter) & set(uniprot_list))
+    elif df_filter is not None:
+        uniprot_list = uniprots_from_fdr_filter
+    else:
+        uniprot_list = None
+    
+    if uniprot_list is not None:
+        df_filter_uniprot = pd.DataFrame({'uniprot_id': uniprot_list})
+        df_rvas = pd.merge(df_rvas, df_filter_uniprot, on='uniprot_id', how='inner')
+    
+    return df_rvas, df_filter
+
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
@@ -95,7 +165,7 @@ if __name__ == '__main__':
         help='filter to variants with AC less than this.'
     )
     parser.add_argument(
-        '--df-fdr-filter',
+        '--df-filter',
         type=str,
         default=None,
         help='''
@@ -249,64 +319,20 @@ if __name__ == '__main__':
         logger.info(f"Creating results directory: {args.results_dir}")
         os.makedirs(args.results_dir, exist_ok=True)
 
-    # Map and filter RVAS data
-    
-    if args.rvas_data_to_map is not None:
-        df_rvas = map_to_protein(
-            args.rvas_data_to_map,
-            args.variant_id_col,
-            args.ac_case_col,
-            args.ac_control_col,
-            args.reference_dir,
-            args.uniprot_id,
-            args.genome_build
-        )
-    else:
-        df_rvas = None
-
-    if args.uniprot_id is not None:
-        if os.path.exists(args.uniprot_id):
-            uniprot_id = [x.rstrip() for x in open(args.uniprot_id).readlines()]
-        else:
-            uniprot_id = args.uniprot_id.split(',')
-    else:
-        uniprot_id = None
-
-    if df_rvas is not None:
-        df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < args.ac_filter]
-        if uniprot_id is not None:
-            df_rvas = df_rvas[df_rvas.uniprot_id.isin(uniprot_id)]
-
-    # Load FDR filter if provided
-
-    if args.df_fdr_filter is not None:
-        filter_files = args.df_fdr_filter.split(',')
-        def read_filter_file(f):
-            df_fdr_filter = pd.read_csv(f, sep='\t')
-            if 'aa_pos' in df_fdr_filter.columns:
-                df_fdr_filter = df_fdr_filter[['uniprot_id', 'aa_pos']]
-            else:
-                df_fdr_filter = df_fdr_filter[['uniprot_id']]
-            df_fdr_filter = df_fdr_filter.drop_duplicates()
-            return df_fdr_filter
-        df_fdr_filter = read_filter_file(filter_files[0])
-        if len(filter_files) > 1:
-            for f in filter_files[1:]:
-                next_fdr_filter = read_filter_file(f)
-                df_fdr_filter = pd.merge(df_fdr_filter, next_fdr_filter)
-    else:
-        df_fdr_filter = None
-    if uniprot_id is not None:
-        df_fdr_filter_uniprot = pd.DataFrame({'uniprot_id': uniprot_id})
-        if args.df_fdr_filter is not None:
-            df_fdr_filter = pd.merge(df_fdr_filter, df_fdr_filter_uniprot)
-        else:
-            df_fdr_filter = df_fdr_filter_uniprot
 
 
-    print('df_fdr_filter', df_fdr_filter)
+    df_rvas, df_filter = map_and_filter_rvas(
+        args.rvas_data_to_map,
+        args.variant_id_col,
+        args.ac_case_col,
+        args.ac_control_col,
+        args.reference_dir,
+        args.uniprot_id,
+        args.genome_build,
+        args.df_filter,
+        args.ac_filter,
+    )
 
-    # Run analysis
 
     did_nothing = True
 
@@ -327,7 +353,7 @@ if __name__ == '__main__':
             args.no_fdr,
             args.fdr_only,
             args.fdr_cutoff,
-            df_fdr_filter,
+            df_filter,
             args.ignore_ac,
             args.fdr_file,
             args.pval_file,
