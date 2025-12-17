@@ -23,6 +23,7 @@ def map_and_filter_rvas(
         genome_build,
         df_filter,
         ac_filter,
+        dont_remove_common,
 ):
     
     if rvas_data_to_map is not None:
@@ -43,6 +44,18 @@ def map_and_filter_rvas(
         df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < ac_filter]
         if uniprot_id is not None:
             df_rvas = df_rvas[df_rvas.uniprot_id.isin(uniprot_id)]
+        if not dont_remove_common:
+            print("Removing common variants from RVAS data")
+            keys = ['uniprot_id', 'aa_pos', 'aa_ref', 'aa_alt']
+            df_common_var = pd.read_csv(
+                f'{args.reference_dir}/common_variants_uniprot.tsv',
+                sep='\t',
+                usecols = keys,
+            )
+            to_remove = df_common_var.set_index(keys).index
+            df_rvas = df_rvas.set_index(keys)
+            df_rvas = df_rvas[~df_rvas.index.isin(to_remove)]
+            df_rvas = df_rvas.reset_index()
 
     # Load FDR filter if provided
 
@@ -253,6 +266,12 @@ if __name__ == '__main__':
         help='count every variant only once',
     )
     parser.add_argument(
+        '--dont-remove-common',
+        action='store_true',
+        default=False,
+        help='do not remove common variants from RVAS data',
+    )
+    parser.add_argument(
         '--visualization',
         action='store_true',
         default=False,
@@ -331,6 +350,7 @@ if __name__ == '__main__':
         args.genome_build,
         args.df_filter,
         args.ac_filter,
+        args.dont_remove_common,
     )
 
 
