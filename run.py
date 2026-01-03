@@ -43,9 +43,7 @@ def map_and_filter_rvas(
     if df_rvas is not None:
         df_rvas = df_rvas[df_rvas.ac_case + df_rvas.ac_control < ac_filter]
         if uniprot_id is not None:
-            if isinstance(uniprot_id, str):
-                uniprot_id = [u.strip() for u in uniprot_id.split(",") if u.strip()]
-            df_rvas = df_rvas[df_rvas.uniprot_id.isin(uniprot_id)]
+            df_rvas = df_rvas[df_rvas.uniprot_id.isin(uniprot_id.split(","))]
         if not dont_remove_common:
             print("Removing common variants from RVAS data")
             keys = ['uniprot_id', 'aa_pos', 'aa_ref', 'aa_alt']
@@ -81,7 +79,7 @@ def map_and_filter_rvas(
         df_filter = None
 
     if uniprot_id is not None:
-        if isinstance(uniprot_id, str) and os.path.exists(uniprot_id):
+        if os.path.exists(uniprot_id):
             uniprot_list = [x.rstrip() for x in open(uniprot_id).readlines()]
         else:
             uniprot_list = uniprot_id.split(',')
