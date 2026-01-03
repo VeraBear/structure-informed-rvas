@@ -81,7 +81,7 @@ def map_and_filter_rvas(
         df_filter = None
 
     if uniprot_id is not None:
-        if os.path.exists(uniprot_id):
+        if isinstance(uniprot_id, str) and os.path.exists(uniprot_id):
             uniprot_list = [x.rstrip() for x in open(uniprot_id).readlines()]
         else:
             uniprot_list = uniprot_id.split(',')
