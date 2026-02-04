@@ -93,6 +93,7 @@ def get_ac_per_residue(df, colname, n_res):
 def get_random_ac_per_residue(case_ac_per_residue, total_ac_per_residue, n_sim, seed=0):
     if seed is not None:
         np.random.seed(seed)
+    print('Seed:', seed)
     n_alleles = int(  case_ac_per_residue.sum()  )
     gen = np.random.default_rng()
     null_ac_per_residue = gen.multivariate_hypergeometric(total_ac_per_residue.astype(int), n_alleles, n_sim).T
